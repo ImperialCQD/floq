@@ -1,27 +1,23 @@
 from tests.assertions import CustomAssertions
 import numpy as np
 import tests.rabi as rabi
-import floq.core.spin as spin
 import floq.core.evolution as ev
 import floq.helpers.index as h
 import floq.core.fixed_system as fs
 import floq.errors as er
 
-
 def generate_fake_spectrum(unique_vals, dim, omega, nz):
     vals = np.array([])
-    for i in xrange(0, nz):
+    for i in range(nz):
         offset = h.i_to_n(i, nz)
-        new = unique_vals + offset*omega*np.ones(dim)
+        new = unique_vals + offset * omega * np.ones(dim)
         vals = np.append(vals, new)
     return vals
-
 
 class TestAssembleK(CustomAssertions):
     def setUp(self):
         dim = 2
-        self.p = fs.FixedSystemParameters.optional(dim, nz=5, nc=3, omega=1)
-
+        self.p = fs.FixedSystemParameters(dim, nz=5, nc=3, omega=1)
         a = -1.*np.ones([dim, dim])
         b = np.zeros([dim, dim])
         c = np.ones([dim, dim])
@@ -41,11 +37,10 @@ class TestAssembleK(CustomAssertions):
         builtk = ev.assemble_k(self.hf, self.p)
         self.assertArrayEqual(builtk, self.goalk)
 
-
 class TestAssembledK(CustomAssertions):
     def setUp(self):
         dim = 2
-        self.p = fs.FixedSystemParameters.optional(dim, 5, 3, np=2, omega=1)
+        self.p = fs.FixedSystemParameters(dim, 5, 3, np=2, omega=1)
 
         a = -1.*np.ones([dim, dim])
         b = np.zeros([dim, dim])
@@ -74,8 +69,6 @@ class TestAssembledK(CustomAssertions):
     def test_build(self):
         builtdk = ev.assemble_dk(self.dhf, self.p)
         self.assertArrayEqual(builtdk, self.goaldk)
-
-
 
 class TestFindEigensystem(CustomAssertions):
     def setUp(self):
@@ -110,8 +103,7 @@ class TestFindEigensystem(CustomAssertions):
         omega = 2.1
         nz = 3
         dim = 2
-        p = fs.FixedSystemParameters.optional(dim, nz, omega=omega, decimals=3, sparse=False)
-
+        p = fs.FixedSystemParameters(dim, nz, omega=omega, decimals=3, sparse=False)
         self.vals, self.vecs = ev.find_eigensystem(k, p)
 
     def test_finds_vals(self):
@@ -123,49 +115,38 @@ class TestFindEigensystem(CustomAssertions):
     def test_casts_as_complex128(self):
         self.assertEqual(self.vecs.dtype, 'complex128')
 
-
 class TestFindDuplicates(CustomAssertions):
-
     def test_duplicates(self):
         a = np.array([1, 2.001, 2.003, 1.999, 3])
         res = ev.find_duplicates(a, 2)
-
         self.assertArrayEqual([1, 2, 3], res)
 
     def test_empty_if_no_dup(self):
         a = np.array([1, 2.001, 4.003, 8.999, 10])
         res = ev.find_duplicates(a, 2)
-
         self.assertEqual(res, [])
-
 
 class TestCalculatePhi(CustomAssertions):
     def test_sum(self):
         a = np.array([1.53, 2.45])
         b = np.array([7.161, 1.656])
         c = np.array([2.3663, 8.112])
-
         e1 = np.array([a, a, c])
         e1_sum = a+a+c
         e2 = np.array([c, a, b])
         e2_sum = c+a+b
-
         target = np.array([e1_sum, e2_sum])
         calculated_sum = ev.calculate_phi(np.array([e1, e2]))
-
         self.assertArrayEqual(calculated_sum, target)
-
 
 class TestCalculatePsi(CustomAssertions):
     def test_sum(self):
         omega = 2.34
         t = 1.22
-        p = fs.FixedSystemParameters.optional(2, 3, omega=omega, t=t)
-
+        p = fs.FixedSystemParameters(2, 3, omega=omega, t=t)
         a = np.array([1.53, 2.45], dtype='complex128')
         b = np.array([7.161, 1.656], dtype='complex128')
         c = np.array([2.3663, 8.112], dtype='complex128')
-
         e1 = np.array([a, a, c])
         e1_sum = np.exp(-1j*omega*t)*a+a+np.exp(1j*omega*t)*c
         e2 = np.array([c, a, b])
@@ -185,7 +166,7 @@ class TestCalculateU(CustomAssertions):
         t = 8.123
         dim = 2
         nz = 3
-        p = fs.FixedSystemParameters.optional(dim, nz, omega=omega, t=t)
+        p = fs.FixedSystemParameters(dim, nz, omega=omega, t=t)
 
         energies = [0.23, 0.42]
 

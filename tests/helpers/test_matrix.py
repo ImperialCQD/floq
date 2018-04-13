@@ -43,8 +43,8 @@ class TestGramSchmidt(CustomAssertions):
         self.assertAlmostEqual(product(self.x, self.z), 0.0)
 
     def test_orthogonality_y_z(self):
-        print self.y
-        print self.z
+        print(self.y)
+        print(self.z)
         self.assertAlmostEqual(product(self.y, self.z), 0.0)
 
     def test_normalised_x(self):

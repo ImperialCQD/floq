@@ -72,7 +72,7 @@ def update_hf(hf, ncomp, controls, mu, factor):
     and so we only need to go through half the array due to the symmetry.
     """
 
-    for k in xrange(0, ncomp):
+    for k in range(0, ncomp):
         a = controls[-2*k-2]  # linearly polarized field component
         b = controls[-2*k-1]  # circularly polarized field component
 
@@ -173,7 +173,7 @@ def generate_dhf(ncomp, mu, factor):
     npm = 2*ncomp
     nc = 2*ncomp + 1
     dhf = np.zeros([npm, nc, 16, 16], dtype=np.complex128)
-    for index in xrange(0, npm):
+    for index in range(0, npm):
         dhf[index] = generate_single_dhf(mu, ncomp, index, factor)
 
     return dhf

@@ -5,8 +5,7 @@ import floq.systems.spins as spins
 import floq.core.fixed_system as fs
 import floq.core.evolution as ev
 import floq.errors as er
-import rabi
-
+from . import rabi
 
 # Test whether U and dU are computed correctly
 # in a variety of cases
@@ -24,7 +23,7 @@ class TestRabiUfromFixedSystem(CustomAssertions):
         dim = 2
         omega = 5.0
         t = 20.5
-        p = fs.FixedSystemParameters.optional(dim=dim, nz=nz, omega=omega, t=t, nc=3, np=1)
+        p = fs.FixedSystemParameters(dim=dim, nz=nz, omega=omega, t=t, nc=3, np=1)
 
         self.u = rabi.u(g, e1, e2, omega, t)
         self.ucal = ev.get_u(hf, p)
@@ -51,7 +50,7 @@ class TestRabidUfromFixedSystem(CustomAssertions):
         dim = 2
         omega = 5.0
         t = 1.5
-        p = fs.FixedSystemParameters.optional(dim, nz, nc=3, omega=omega, t=t, np=1)
+        p = fs.FixedSystemParameters(dim, nz, nc=3, omega=omega, t=t, np=1)
 
         k = ev.assemble_k(hf, p)
         vals, vecs = ev.find_eigensystem(k, p)
@@ -80,7 +79,7 @@ class TestRabiUandDUfromFixedSystem(CustomAssertions):
         dim = 2
         omega = 5.0
         t = 1.5
-        p = fs.FixedSystemParameters.optional(dim=dim, nz=nz, omega=omega, t=t, nc=3, np=1)
+        p = fs.FixedSystemParameters(dim=dim, nz=nz, omega=omega, t=t, nc=3, np=1)
 
         self.du = np.array([[-0.43745 + 0.180865j, 0.092544 - 0.0993391j],
                             [-0.0611011 - 0.121241j, -0.36949-0.295891j]])
@@ -116,7 +115,7 @@ class TestSpinUfromFixedSystem(CustomAssertions):
         dim = 2
         omega = 1.3
         t = 0.6
-        p = fs.FixedSystemParameters.optional(dim=dim, nz=nz, omega=omega, t=t, nc=11, np=10)
+        p = fs.FixedSystemParameters(dim=dim, nz=nz, omega=omega, t=t, nc=11, np=10)
 
         self.u = np.array([[-0.150824 + 0.220144j, -0.132296 - 0.954613j],
                            [0.132296 - 0.954613j, -0.150824 - 0.220144j]])
@@ -159,7 +158,7 @@ class TestRydbergAtoms(CustomAssertions):
 
         controls = np.array([0.5, 1.1, 0.6, 1.5])
         system = RydbergAtoms(2, self.rvec2, self.mu, self.delta, self.omega)
-        print system.r
+        print(system.r)
         self.assertArrayEqual(target, system.u(controls, 0.9))
 
 
@@ -168,7 +167,7 @@ class TestRydbergAtoms(CustomAssertions):
 
         controls = np.array([0.1, 0.1, 0.1, 0.1])
         system = RydbergAtoms(2, self.rvec2, self.mu, self.delta, self.omega)
-        print system.r
+        print(system.r)
         self.assertArrayEqual(target, system.u(controls, 0.9))
 
     def test_nz_does_not_blow_up_one(self):

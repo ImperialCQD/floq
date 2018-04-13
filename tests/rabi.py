@@ -1,13 +1,11 @@
 import numpy as np
 
-
 def hf(g, e1, e2):
     hf = np.zeros([3, 2, 2])
     hf[0] = np.array([[0, 0], [g, 0]])
     hf[1] = np.array([[e1, 0], [0, e2]])
     hf[2] = np.array([[0, g], [0, 0]])
     return hf
-
 
 def u(g, e1, e2, w, t):
     w12 = e1-e2
