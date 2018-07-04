@@ -186,3 +186,30 @@ class TestCalculateU(CustomAssertions):
 
         self.assertArrayEqual(u, target)
 
+
+class TestCalculateUdot(CustomAssertions):
+    def test_udot(self):
+        omega = 2.56
+        t = 1.23
+        dim = 2
+        nz = 3
+        p = fs.FixedSystemParameters(dim, nz, omega=omega, t=t)
+
+        energies = [0.23, 0.42]
+
+        e1 = np.array([1.563 + 1.893j, 1.83 + 1.142j, 0.552 + 0.997j,
+                       0.766 + 1.162j, 1.756 + 0.372j, 0.689 + 0.902j])
+        e2 = np.array([1.328 + 1.94j, 1.866 + 0.055j, 1.133 + 0.162j,
+                       1.869 + 1.342j, 1.926 + 1.587j, 1.735 + 0.942j])
+        vecs = np.array([e1, e2])
+        vecs = np.array([np.split(eva, nz) for eva in vecs])
+
+        phi = ev.calculate_phi(vecs)
+        psi = ev.calculate_psi(vecs, p)
+        psidot = ev.calculate_psidot(vecs, p)
+
+        target = np.array([[-18.3738 + 28.8951j, -19.4244 + 25.5303j], [22.7487 + 1.48245j, 25.7424 + 2.79668j]])
+        target = target.round(3)
+        u = ev.calculate_udot(phi, psi, psidot, energies, p).round(3)
+
+        self.assertArrayEqual(u, target)

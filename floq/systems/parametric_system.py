@@ -1,6 +1,7 @@
 import numpy as np
 from ..core import fixed_system as fs
 from .. import errors as er
+import copy
 
 class ParametricSystemBase(object):
     """Specifies a physical system that still has open parameters, such as the
@@ -50,6 +51,15 @@ class ParametricSystemBase(object):
             self.nz = self._fixed_system.params.nz
             return u
 
+    def udot(self, controls, t):
+        if self._is_cached(controls, t):
+            return self._fixed_system.udot
+        else:
+            self._set_cached(controls, t)
+            udot = self._fixed_system.udot
+            self.nz = self._fixed_system.params.nz
+            return udot
+
     def du(self, controls, t):
         if self._is_cached(controls, t):
             return self._fixed_system.du
@@ -64,14 +74,19 @@ class ParametricSystemBase(object):
                and np.array_equal(self._last_controls, controls)
 
     def _set_cached(self, controls, t):
-        self._last_controls = controls
-        self._last_t = t
+        self._last_controls = np.copy(controls)
+        self._last_t = copy.copy(t)
         hf = self._hf(controls)
         dhf = self._dhf(controls)
         self._fixed_system = fs.FixedSystem(hf, dhf, self.nz, self.omega, t,
                                             decimals=self.decimals,
                                             sparse=self.sparse,
                                             max_nz=self.max_nz)
+
+    def heff(self, controls, t):
+        u = self.u(controls, t)
+        udot = self.udot(controls, t)
+        return 1j * np.dot(udot, np.conj(u.T))
 
 class ParametricSystemWithFunctions(ParametricSystemBase):
     """A ParametricSystem that wraps callables hf and dhf."""

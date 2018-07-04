@@ -12,6 +12,17 @@ def get_u(hf, params):
     Hamiltonian Hf and the parameters of the problem."""
     return get_u_and_eigensystem(hf, params)[0]
 
+def get_u_and_udot(hf, params):
+    """
+    Calculate the time evolution operator U, given a Fourier transformed
+    Hamiltonian Hf and the parameters of the problem, as well as its time
+    derivative.
+    """
+    u, vals, vecs, phi, psi = get_u_and_eigensystem(hf, params)
+    psidot = calculate_psidot(vecs, params)
+    udot = calculate_udot(phi, psi, psidot, vals, params)
+    return u, udot
+
 def get_u_and_du(hf, dhf, params):
     """Calculate the time evolution operator U given a Fourier transformed
     Hamiltonian Hf, as well as its derivative dU given dHf, and the parameters
@@ -32,8 +43,16 @@ def get_u_and_eigensystem(hf, params):
 
 def get_du_from_eigensystem(dhf, psi, vals, vecs, params):
     dk = assemble_dk(dhf, params)
-    du = calculate_du(dk, psi, vals, vecs, params)
-    return du
+    return calculate_du(dk, psi, vals, vecs, params)
+
+def get_udot_from_eigensystem(phi, psi, vals, vecs, params):
+    """
+    Calculate the time evolution operator U, given a Fourier transformed
+    Hamiltonian Hf and the parameters of the problem, as well as its time
+    derivative.
+    """
+    psidot = calculate_psidot(vecs, params)
+    return calculate_udot(phi, psi, psidot, vals, params)
 
 def assemble_k(hf, p):
     """Assemble the Floquet Hamiltonian K from the components of the
@@ -188,6 +207,25 @@ def numba_calculate_psi(vecs, dim, nz, omega, t):
         psi[k, :] = partial
     return psi
 
+def calculate_psidot(vecs, p):
+    """
+    Given an array of eigenvectors vecs, sum over all Fourier components in
+    each, weighted by exp(- i omega t n), with n being the Fourier index of the
+    component.
+    """
+    return numba_calculate_psidot(vecs, p.dim, p.nz, p.omega, p.t)
+
+@autojit(nopython=True)
+def numba_calculate_psidot(vecs, dim, nz, omega, t):
+    psidot = numba_zeros((dim, dim))
+    for k in range(0, dim):
+        partial = numba_zeros(dim)
+        for i in range(nz):
+            num = i_to_n(i, nz)
+            partial += (1j*omega*num) * np.exp(1j*omega*t*num) * vecs[k][i]
+        psidot[k, :] = partial
+    return psidot
+
 def calculate_u(phi, psi, energies, p):
     u = np.zeros((p.dim, p.dim), dtype=np.complex128)
     t = p.t
@@ -195,13 +233,24 @@ def calculate_u(phi, psi, energies, p):
         u += np.exp(-1j * t * energies[k]) * np.outer(psi[k], np.conj(phi[k]))
     return u
 
+def calculate_udot(phi, psi, psidot, energies, p):
+    udot = np.zeros((p.dim, p.dim), dtype=np.complex128)
+    t = p.t
+    for k in range(p.dim):
+        udot += np.exp(-1j*t*energies[k]) * np.outer(psidot[k], np.conj(phi[k]))
+        udot += -1j * energies[k] * np.exp(-1j*t*energies[k])\
+                * np.outer(psi[k], np.conj(phi[k]))
+    return udot
+
 def calculate_du(dk, psi, vals, vecs, p):
-    """Given the eigensystem of K, and its derivative, perform the computations
+    """
+    Given the eigensystem of K, and its derivative, perform the computations
     to get dU.
 
     This routine is optimised and quite hard to read, I recommend taking a look
     in the museum, which contains functionally equivalent, but much more
-    readable versions."""
+    readable versions.
+    """
     dim = p.dim
     nz_max = p.nz_max
     nz = p.nz
@@ -212,7 +261,6 @@ def calculate_du(dk, psi, vals, vecs, p):
     factors = calculate_factors(dk, nz, nz_max, dim, np_, vals, vecs,\
                                 vecsstar, omega, t)
     return assemble_du(nz, nz_max, dim, np_, factors, psi, vecsstar)
-
 
 def calculate_factors(dk, nz, nz_max, dim, np_, vals, vecs, vecsstar, omega, t):
     # Factors in the sum for dU that only depend on dn=n1-n2, and therefore

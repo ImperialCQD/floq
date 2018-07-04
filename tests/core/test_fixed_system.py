@@ -136,6 +136,13 @@ class TestFixedSystemCaching(TestCase):
         u = self.s.u
         mock.assert_not_called()
 
+    def test_compute_udot_once(self):
+        udot = self.s.udot
+        mock = MagicMock()
+        self.s._compute_udot = mock
+        udot = self.s.udot
+        mock.assert_not_called()
+
 
     def test_compute_du_once(self):
         du = self.s.du
