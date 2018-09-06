@@ -114,14 +114,11 @@ def get_basis(k, p):
     """Compute the eigensystem of K, then separate out the dim relevant parts,
     orthogonalising degenerate subspaces."""
     vals, vecs = compute_eigensystem(k, p)
-    start = find_first_above_value(vals, -p.omega / 2)
+    start = find_first_above_value(vals, -0.5 * p.omega)
     picked_vals = vals[start:start + p.dim]
     picked_vecs = np.array([vecs[:, i] for i in range(start, start + p.dim)])
-    degenerate_indices = find_duplicates(picked_vals, p.decimals)
-    if degenerate_indices:
-        to_orthogonalize = picked_vecs[degenerate_indices]
-        orthogonalized = mm.gram_schmidt(to_orthogonalize)
-        picked_vecs[degenerate_indices, :] = orthogonalized
+    for duplicate_set in find_duplicates(picked_vals, p.decimals):
+        picked_vecs[duplicate_set] = mm.gram_schmidt(picked_vecs[duplicate_set])
     return picked_vals, picked_vecs
 
 def compute_eigensystem(k, p):
@@ -166,11 +163,32 @@ def find_first_above_value(array, value):
     return None
 
 def find_duplicates(array, decimals):
+    """
+    Given a sorted 1D array of values, return an iterator where each element
+    corresponds to one degenerate eigenvalue, and the element is a list of
+    indices where that eigenvalue occurs.
+
+    For example,
+        find_duplicates([0, 0, 0, 1, 2, 2, 3])
+    returns
+        [[0, 1, 2], [4, 5]].
+
+    Arguments --
+    array: 1D sorted np.array -- The array to find duplicates in.
+    decimals: float --
+        The number of decimal places to round `array` to when comparing values
+        for equality.
+
+    Returns --
+    duplicate_sets: iterator of np.array of int --
+        An iterator yielding arrays of the indices of each duplicate entry.
+        Entries which are not duplicated will not be referenced in the output.
+    """
     indices = np.arange(array.shape[0])
-    a = np.round(array, decimals=decimals)
-    _, idx_start = np.unique(np.round(array, decimals=decimals),
-                                return_index=True)
-    return list(filter(lambda x: x.size > 1, np.split(indices, idx_start[1:])))
+    _, start_indices = np.unique(np.round(array, decimals=decimals),
+                                 return_index=True)
+    # start_indices will always contain 0 first, but np.split doesn't need it.
+    return filter(lambda x: x.size > 1, np.split(indices, start_indices[1:]))
 
 @autojit(nopython=True)
 def calculate_phi(vecs):
