@@ -1,5 +1,5 @@
 import numpy as np
-from floq.systems.parametric_system import ParametricSystemBase
+import floq
 
 # Rydberg atoms as test problem;
 # full commented implementation at github.com/sirmarcel/ryd
@@ -8,54 +8,22 @@ from floq.systems.parametric_system import ParametricSystemBase
 factor_hdip = 9.75009e+2
 factor_haf = 1.27954e+1
 
-
-class RydbergAtoms(ParametricSystemBase):
-    """Implement a pair of interacting Rydberg atoms, where the Rydberg s state is
-    coupled via two microwave fields to its excited p (l=1) states.
-    """
-
-    def __init__(self, ncomp, rvec, mu, delta, omega):
-        super(RydbergAtoms, self).__init__()
-        self.ncomp = ncomp
-
-        self.rvec = rvec
-        self.r = np.sqrt(rvec.dot(rvec))
-        self.x = rvec[0]
-        self.y = rvec[1]
-        self.z = rvec[2]
-
-        self.mu = mu
-        self.delta = delta
-        self.omega = omega*np.pi*2  # convert frequency to angular frequency
-
-        self.nz = 11
-        self.max_nz = 1001
-
-        self._init_hf()
-
-
-    def _init_hf(self):
-        self._hf_base = np.zeros([self.ncomp*2+1, 16, 16], dtype=np.complex128)
-
-        # declare the part of the Hamiltonian that is independent of the controls
-        hstatic = generate_ha(self.delta) + generate_hdip(self.r, self.x, self.y, self.z,
-                                                          self.mu, factor_hdip)
-
-        self._hf_base[self.ncomp, :, :] = hstatic
-
-        self._dhf_static = generate_dhf(self.ncomp, self.mu, factor_haf)
-
-
-    def _hf(self, controls):
-        # Compute the Fourier-transformed Hamiltonian
-        update_hf(self._hf_base, self.ncomp, controls, self.mu, factor_haf)
-        return self._hf_base
-
-
-    def _dhf(self, controls):
-        return self._dhf_static
-
-
+def rydberg_atoms(n_components, rvec, mu, delta, omega, **kwargs):
+    h_base = np.zeros((2*n_components + 1, 16, 16), dtype=np.complex128)
+    h_static = generate_ha(delta) + generate_hdip(np.linalg.norm(rvec),
+                                                rvec[0], rvec[1], rvec[2],
+                                                mu, factor_hdip)
+    h_base[n_components] = h_static
+    dh_base = generate_dhf(n_components, mu, factor_haf)
+    def _hamiltonian(controls):
+        update_hf(h_base, n_components, controls, mu, factor_haf)
+        return h_base
+    if 'nz' not in kwargs:
+        kwargs['nz'] = 11
+    if 'max_nz' not in kwargs:
+        kwargs['max_nz'] = 1001
+    return floq.System(_hamiltonian, lambda controls: dh_base,
+                       omega=2*np.pi*omega, **kwargs)
 
 def update_hf(hf, ncomp, controls, mu, factor):
     """In the supplied array hf, update the control entries, in memory.
@@ -71,8 +39,7 @@ def update_hf(hf, ncomp, controls, mu, factor):
 
     and so we only need to go through half the array due to the symmetry.
     """
-
-    for k in range(0, ncomp):
+    for k in range(ncomp):
         a = controls[-2*k-2]  # linearly polarized field component
         b = controls[-2*k-1]  # circularly polarized field component
 
@@ -145,15 +112,12 @@ def update_hf(hf, ncomp, controls, mu, factor):
         hf[-k-1, 15, 3] = -rabi_b
         hf[k, 15, 12] = rabi_b
         hf[-k-1, 15, 12] = -rabi_b
-
     return None
 
 
 def generate_ha(delta):
     """Generate the single-atom parts of the Hamiltonian."""
-
     return np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, -delta, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, -delta, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, -delta, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, -delta, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, -2*delta, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, -2*delta, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, -2*delta, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, -delta, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, -2*delta, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2*delta, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2*delta, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -delta, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2*delta, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2*delta, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2*delta]])
-
 
 def generate_hdip(r, x, y, z, mu, factorhdip):
     """Generate the dipole-dipole part of the Hamiltonian.
@@ -163,21 +127,16 @@ def generate_hdip(r, x, y, z, mu, factorhdip):
         mu: matrix element value (see class for definition)
         factor: adjustment factor taking into account various units.
     """
-
     return np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, (factorhdip*mu**2*(2*r**2 - 3*(x**2 + y**2)))/(2*r**5), 0, 0, 0, (-3*factorhdip*mu**2*(x +1j*y)*z)/(np.sqrt(2)*r**5), 0, 0, 0, (3*factorhdip*mu**2*(x +1j*y)**2)/(2*r**5), 0, 0, 0], [0, 0, 0, 0, (-3*factorhdip*mu**2*(x -1j*y)*z)/(np.sqrt(2)*r**5), 0, 0, 0, (factorhdip*mu**2*(r**2 - 3*z**2))/r**5, 0, 0, 0, (3*factorhdip*mu**2*(x +1j*y)*z)/(np.sqrt(2)*r**5), 0, 0, 0], [0, 0, 0, 0, (3*factorhdip*mu**2*(x -1j*y)**2)/(2*r**5), 0, 0, 0, (3*factorhdip*mu**2*(x -1j*y)*z)/(np.sqrt(2)*r**5), 0, 0, 0, (factorhdip*mu**2*(2*r**2 - 3*(x**2 + y**2)))/(2*r**5), 0, 0, 0], [0, (factorhdip*mu**2*(2*r**2 - 3*(x**2 + y**2)))/(2*r**5), (-3*factorhdip*mu**2*(x +1j*y)*z)/(np.sqrt(2)*r**5), (3*factorhdip*mu**2*(x +1j*y)**2)/(2*r**5), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, (-3*factorhdip*mu**2*(x -1j*y)*z)/(np.sqrt(2)*r**5), (factorhdip*mu**2*(r**2 - 3*z**2))/r**5, (3*factorhdip*mu**2*(x +1j*y)*z)/(np.sqrt(2)*r**5), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, (3*factorhdip*mu**2*(x -1j*y)**2)/(2*r**5), (3*factorhdip*mu**2*(x -1j*y)*z)/(np.sqrt(2)*r**5), (factorhdip*mu**2*(2*r**2 - 3*(x**2 + y**2)))/(2*r**5), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
-
 
 def generate_dhf(ncomp, mu, factor):
     """Generate the (static) gradient of the Fourier Hamiltonian."""
-
     npm = 2*ncomp
     nc = 2*ncomp + 1
     dhf = np.zeros([npm, nc, 16, 16], dtype=np.complex128)
     for index in range(0, npm):
         dhf[index] = generate_single_dhf(mu, ncomp, index, factor)
-
     return dhf
-
 
 def generate_single_dhf(mu, ncomp, index, factor):
     """Generate a single component of dhf, wrt to control index.

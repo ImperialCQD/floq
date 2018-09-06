@@ -1,7 +1,7 @@
 from unittest import TestCase
 from tests.assertions import CustomAssertions
 import floq.optimization.fidelity as fid
-from floq.systems.spins import SpinEnsemble
+from floq.systems import SpinEnsemble
 import numpy as np
 from mock import MagicMock
 
@@ -23,12 +23,9 @@ class TestFidelityBaseIterations(TestCase):
         self.computer.reset_iterations()
         self.assertEqual(self.computer.iterations, 0)
 
-
-
 class TestEnsembleFidelity(CustomAssertions):
     def setUp(self):
         self.ensemble = SpinEnsemble(2, 2, 1.5, np.array([1.1, 1.1]), np.array([1, 1]))
-
 
     def test_correct_in_one_case(self):
         target = np.array([[0.105818 - 0.324164j, -0.601164 - 0.722718j],

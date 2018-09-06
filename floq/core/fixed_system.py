@@ -60,7 +60,7 @@ class FixedSystem(object):
             return self._u
 
     @property
-    def udot(self):
+    def du_dt(self):
         if self._udot is not None:
             return self._udot
         else:
@@ -68,7 +68,7 @@ class FixedSystem(object):
             return self._udot
 
     @property
-    def du(self):
+    def du_dcontrols(self):
         if self._du is not None:
             return self._du
         else:

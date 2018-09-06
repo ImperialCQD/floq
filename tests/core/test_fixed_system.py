@@ -108,7 +108,7 @@ class TestEvolveFixedSystemWithDerivs(CustomAssertions):
 
         self.ducal = np.array([[-0.43745 + 0.180865j, 0.092544 - 0.0993391j],
                             [-0.0611011 - 0.121241j, -0.36949-0.295891j]])
-        self.du = s.du
+        self.du = s.du_dcontrols
 
     def test_is_correct_du(self):
         self.assertArrayEqual(self.ducal, self.du)
@@ -137,18 +137,18 @@ class TestFixedSystemCaching(TestCase):
         mock.assert_not_called()
 
     def test_compute_udot_once(self):
-        udot = self.s.udot
+        udot = self.s.du_dt
         mock = MagicMock()
         self.s._compute_udot = mock
-        udot = self.s.udot
+        udot = self.s.du_dt
         mock.assert_not_called()
 
 
     def test_compute_du_once(self):
-        du = self.s.du
+        du = self.s.du_dcontrols
         mock = MagicMock()
         self.s._compute_du = mock
-        du = self.s.du
+        du = self.s.du_dcontrols
         mock.assert_not_called()
 
 
