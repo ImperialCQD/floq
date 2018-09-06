@@ -37,7 +37,8 @@ class FixedSystem(object):
         dim = hf.shape[1]
         nc = hf.shape[0]
         np = dhf.shape[0]
-        self.params = FixedSystemParameters(dim, nz, nc, np, omega, t, decimals)
+        self.params = FixedSystemParameters(dim, nz, nc, np, omega, t, decimals,
+                                            sparse=sparse)
         self._u = None
         self._udot = None
         self._du = None
