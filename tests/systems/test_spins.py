@@ -80,7 +80,7 @@ class TestSpinEnsemble(CustomAssertions):
 
     def test_single_system_evolves_correctly(self):
         system = self.ensemble.systems[0]
-        result = system.u(self.controls, self.t)
+        result = system.u(self.t, self.controls)
         single = floq.systems.spin(2, self.amps[0], self.freqs[0], omega=1.0)
-        target = single.u(self.controls, self.t)
+        target = single.u(self.t, self.controls)
         self.assertArrayEqual(result, target, decimals=10)

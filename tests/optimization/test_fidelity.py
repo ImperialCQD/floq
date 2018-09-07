@@ -33,4 +33,4 @@ class TestEnsembleFidelity(CustomAssertions):
 
         f = fid.EnsembleFidelity(self.ensemble, fid.OperatorDistance, t=1.0, target=target)
         print(f.f(np.array([1.5, 1.5, 1.5, 1.5])))
-        self.assertTrue(np.isclose(f.f(np.array([1.5, 1.5, 1.5, 1.5])), 0.0, atol=1e-5))
+        self.assertTrue(np.isclose(0.0, f.f(np.array([1.5, 1.5, 1.5, 1.5])), atol=1e-5))

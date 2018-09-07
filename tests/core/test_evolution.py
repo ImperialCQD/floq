@@ -118,13 +118,14 @@ class TestFindEigensystem(CustomAssertions):
 class TestFindDuplicates(CustomAssertions):
     def test_duplicates(self):
         a = np.array([1, 2.001, 2.003, 1.999, 3])
-        res = ev.find_duplicates(a, 2)
-        self.assertArrayEqual([1, 2, 3], res)
+        res = tuple(ev.find_duplicates(a, 2))
+        self.assertEqual(len(res), 1)
+        self.assertArrayEqual([1, 2, 3], res[0])
 
     def test_empty_if_no_dup(self):
         a = np.array([1, 2.001, 4.003, 8.999, 10])
-        res = ev.find_duplicates(a, 2)
-        self.assertEqual(res, [])
+        res = tuple(ev.find_duplicates(a, 2))
+        self.assertEqual(res, ())
 
 class TestCalculatePhi(CustomAssertions):
     def test_sum(self):

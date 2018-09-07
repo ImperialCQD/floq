@@ -1,6 +1,5 @@
 import numpy as np
 import abc
-import copy
 from . import core
 
 class System:
@@ -16,10 +15,9 @@ class System:
                        max_nz=999, sparse=True, decimals=10, cache=True):
         """
         Arguments --
-        hamiltonian: (controls: array_like) -> 3D np.array of complex --
-            A function which takes an array of its control parameters and
-            returns a Fourier representation of the matrix.  The shape of the
-            output array is
+        hamiltonian: (*args, **kwargs) -> 3D np.array of complex --
+            A function which takes any set of arguments and returns a Fourier
+            representation of the matrix.  The shape of the output array is
                 (modes, N, N),
             where `modes` is the number of Fourier modes (relative to the
             principle frequency `omega`) and `N` is the dimension of the
@@ -31,14 +29,32 @@ class System:
             must run over - `hamiltonian(controls)[0]` should be an `N * N`
             matrix containing the Fourier mode corresponding to `-m * omega`.
 
-        dhamiltonian: (controls: array_like) -> 4D np.array of complex --
-            A function which takes an array of its control parameters and
-            returns the derivatives of the Fourier representation of the matrix
-            with respect to each of the control parameters in turn.  The shape
-            is
+            The function can take any number of positional and keyword
+            arguemnts.  These are supplied by passing additional positional and
+            keyword arguments to `self.u()`, `self.du_dcontrols()` and the other
+            instance methods.  After the necessary values for those functions
+            are filled, any additional parameters will be passed on to
+            `hamiltonian`.  This typically means that `self.u()` is called as
+            `self.u(t, controls)` or something similar, and the signature of
+            `hamiltonian` is `hamiltonian(controls) -> np.array`.
+
+            When caching, the arguments of `hamiltonian` are only
+            shallow-copied to prevent limitations of the types of arguments that
+            can be passed (deep-copy would make the corresponding equality check
+            very difficult in the general case).  This means that caching may
+            erroneously activate if the arguments are mutated in-place.
+            Do not mutate arguments if this is a concern - only pass new
+            instances (or disable caching, though this isn't recommended if you
+            care about both `u()` and `du_d*()`).
+
+        dhamiltonian: (*args, **kwargs) -> 4D np.array of complex --
+            A function which takes any set of arguments and returns the
+            derivatives of the Fourier representation of the matrix with respect
+            to each of the control parameters in turn.  The shape is
                 (ncontrols, modes, N, N),
             so the first index runs over the controls, and the remaining indices
-            are the same as the output of `hamiltonian()`.
+            are the same as the output of `hamiltonian()`.  The function
+            arguments must match those of `hamiltonian`.
 
         nz: odd int > 0 --
             The initial number of 'Brillouin zones' to be considered.
@@ -66,7 +82,6 @@ class System:
             arguments are cached, so there is no real memory impact even when
             `True`.
         """
-        self.__controls = None
         self.__t = None
         self.__args = None
         self.__kwargs = None
@@ -80,55 +95,70 @@ class System:
         self.hamiltonian = hamiltonian
         self.dhamiltonian = dhamiltonian
 
-    def __update_if_required(self, controls: np.array, t: float, args, kwargs):
+    def __compare_args(self, one, two):
+        if len(one) != len(two):
+            return False
+        for a, b in zip(one, two):
+            if not np.array_equal(a, b):
+                return False
+        return True
+
+    def __compare_kwargs(self, one, two):
+        items = set(one)
+        if items != set(two):
+            return False
+        for item in items:
+            if not np.array_equal(one[item], two[item]):
+                return False
+        return True
+
+    def __update_if_required(self, t: float, args, kwargs):
         """
         Update the underlying `FixedSystem` if the current version was created
         with a different set of control or time parameters.
         """
         if self.cache\
            and self.__t == t\
-           and np.array_equal(self.__controls, controls)\
-           and np.array_equal(self.__args, args)\
-           and self.__kwargs == kwargs:
+           and self.__compare_args(self.__args, args)\
+           and self.__compare_kwargs(self.__kwargs, kwargs):
             return
-        hamiltonian = self.hamiltonian(controls, *args, **kwargs)
-        dhamiltonian = self.dhamiltonian(controls, *args, **kwargs)
+        hamiltonian = self.hamiltonian(*args, **kwargs)
+        dhamiltonian = self.dhamiltonian(*args, **kwargs)
         self.__fixed = core.FixedSystem(hamiltonian, dhamiltonian, self.nz,
                                         self.omega, t,
                                         decimals=self.decimals,
                                         sparse=self.sparse,
                                         max_nz=self.max_nz)
-        self.__controls = np.copy(controls)
         self.__t = t
-        self.__args = copy.copy(args)
+        self.__args = tuple(args)
         self.__kwargs = kwargs.copy()
 
-    def u(self, controls: np.array, t: float, *args, **kwargs):
+    def u(self, t: float, *args, **kwargs):
         """
         Calculate the time evolution operator of the stored Hamiltonian.
         """
-        self.__update_if_required(controls, t, args, kwargs)
+        self.__update_if_required(t, args, kwargs)
         return self.__fixed.u
 
-    def du_dt(self, controls: np.array, t: float, *args, **kwargs):
+    def du_dt(self, t: float, *args, **kwargs):
         """
         Calculate the derivative of the time-evolution operator with respect to
         time.
         """
-        self.__update_if_required(controls, t, args, kwargs)
+        self.__update_if_required(t, args, kwargs)
         return self.__fixed.du_dt
 
-    def du_dcontrols(self, controls: np.array, t: float, *args, **kwargs):
+    def du_dcontrols(self, t: float, *args, **kwargs):
         """
         Calculate the derivatives of the time-evolution operator with respect to
         each of the control parameters in turn.
         """
-        self.__update_if_required(controls, t, args, kwargs)
+        self.__update_if_required(t, args, kwargs)
         return self.__fixed.du_dcontrols
 
-    def h_effective(self, controls: np.array, t: float, *args, **kwargs):
-        u = self.u(controls, t, *args, **kwargs)
-        du_dt = self.du_dt(controls, t, *args, **kwargs)
+    def h_effective(self, t: float, *args, **kwargs):
+        u = self.u(t, *args, **kwargs)
+        du_dt = self.du_dt(t, *args, **kwargs)
         return 1j * (du_dt @ np.conj(u.T))
 
 class EnsembleBase(abc.ABC):

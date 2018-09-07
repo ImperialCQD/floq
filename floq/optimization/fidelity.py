@@ -37,68 +37,69 @@ class FidelityBase(object):
         self.system = system
         self.iterations = 0
 
-    def f(self, controls_and_t):
-        return self._f(controls_and_t) + self.penalty(controls_and_t)
+    def f(self, *args, **kwargs):
+        return self._f(*args, **kwargs) + self.penalty(*args, **kwargs)
 
-    def df(self, controls_and_t):
-        return self._df(controls_and_t) + self.d_penalty(controls_and_t)
+    def df(self, *args, **kwargs):
+        return self._df(*args, **kwargs) + self.d_penalty(*args, **kwargs)
 
-    def iterate(self, controls_and_t):
+    def iterate(self, *args, **kwargs):
         """Gets called by the Optimizer after each iteration. Increases the
         iteration count self.iterations, and calls the (optional) _iterate
         method."""
         self.iterations += 1
-        self._iterate(controls_and_t)
-        f = self.f(controls_and_t)
+        self._iterate(*args, **kwargs)
+        f = self.f(*args, **kwargs)
         logging.info("Currently at iteration {} and f={}"\
                      .format(self.iterations, f))
 
     def reset_iterations(self):
         self.iterations = 0
 
-    def _f(self, controls_and_t):
+    def _f(self, *args, **kwargs):
         raise NotImplementedError
 
-    def _df(self, controls_and_t):
+    def _df(self, *args, **kwargs):
         raise NotImplementedError
 
-    def _iterate(self, controls_and_t):
+    def _iterate(self, *args, **kwargs):
         pass
 
-    def penalty(self, controls_and_t):
+    def penalty(self, *args, **kwargs):
         return 0.0
 
-    def d_penalty(self, controls_and_t):
+    def d_penalty(self, *args, **kwargs):
         return 0.0
 
 class EnsembleFidelity(FidelityBase):
     """With a given Ensemble, and a FidelityComputer, calculate the average
     fidelity over the whole ensemble."""
-    def __init__(self, ensemble, fidelity, **params):
-        super(EnsembleFidelity, self).__init__(ensemble)
-        self.fidelities = [fidelity(sys, **params) for sys in ensemble.systems]
+    def __init__(self, ensemble, fidelity, **kwargs):
+        super().__init__(ensemble)
+        self.fidelities = [fidelity(sys, **kwargs) for sys in ensemble.systems]
 
-    def _f(self, controls_and_t):
-        return np.mean([fid.f(controls_and_t) for fid in self.fidelities])
+    def _f(self, *args, **kwargs):
+        return np.mean([fid.f(*args, **kwargs) for fid in self.fidelities])
 
-    def _df(self, controls_and_t):
-        return np.mean([fid.df(controls_and_t) for fid in self.fidelities],
+    def _df(self, *args, **kwargs):
+        return np.mean([fid.df(*args, **kwargs) for fid in self.fidelities],
                        axis=0)
 
 class OperatorDistance(FidelityBase):
     """Calculate the operator distance (see core.fidelities for details) for a
     given ParametricSystem and a fixed pulse duration t."""
     def __init__(self, system, t, target):
-        super(OperatorDistance, self).__init__(system)
+        super().__init__(system)
         self.t = t
         self.target = target
 
-    def _f(self, controls):
-        return operator_distance(self.system.u(controls, self.t), self.target)
+    def _f(self, *args, **kwargs):
+        return operator_distance(self.system.u(self.t, *args, **kwargs),
+                                 self.target)
 
-    def _df(self, controls):
-        u = self.system.u(controls, self.t)
-        du = self.system.du(controls, self.t)
+    def _df(self, *args, **kwargs):
+        u = self.system.u(self.t, *args, **kwargs)
+        du = self.system.du_dcontrols(self.t, *args, **kwargs)
         return d_operator_distance(u, du, self.target)
 
 class TransferDistance(FidelityBase):
@@ -106,16 +107,16 @@ class TransferDistance(FidelityBase):
     |final> (see core.fidelities for details) for a given ParametricSystem and a
     fixed pulse duration t."""
     def __init__(self, system, t, initial, final):
-        super(TransferDistance, self).__init__(system)
+        super().__init__(system)
         self.t = t
         self.initial = initial
         self.final = final
 
-    def _f(self, controls):
-        u = self.system.u(controls, self.t)
+    def _f(self, *args, **kwargs):
+        u = self.system.u(self.t, *args, **kwargs)
         return transfer_distance(u, self.initial, self.final)
 
-    def _df(self, controls):
-        u = self.system.u(controls, self.t)
-        du = self.system.du(controls, self.t)
+    def _df(self, *args, **kwargs):
+        u = self.system.u(self.t, *args, **kwargs)
+        du = self.system.du(self.t, *args, **kwargs)
         return d_transfer_distance(u, du, self.initial, self.final)
