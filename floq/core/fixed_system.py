@@ -1,8 +1,7 @@
 import logging
 import numpy as np
-from .. import errors as er
+from .. import errors, linalg
 from ..core import evolution as ev
-from ..helpers.matrix import is_unitary
 
 class FixedSystem(object):
     """Class that defines and computes a specific time-evolution.
@@ -84,8 +83,8 @@ class FixedSystem(object):
             self.params.nz += 2
             logging.debug("Increased nz to {}".format(self.params.nz))
             if self.max_nz < self.params.nz:
-                raise er.NZTooLargeError("NZ has grown too large: {} > {}"\
-                                         .format(self.params.nz, self.max_nz))
+                raise errors.NZTooLargeError("NZ has grown too large: {} > {}"\
+                                           .format(self.params.nz, self.max_nz))
             nz_okay, results = self._test_nz()
         self._u, self._vals, self._vecs, self._phi, self._psi = results
 
@@ -97,7 +96,7 @@ class FixedSystem(object):
         else
             return [True, [u, vecs, vals, phi, psi]]."""
         results = ev.get_u_and_eigensystem(self.hf, self.params)
-        if is_unitary(results[0], tolerance=10**-self.params.decimals):
+        if linalg.is_unitary(results[0], tolerance=10**-self.params.decimals):
             return True, results
         else:
             return False, ()
@@ -162,8 +161,8 @@ class FixedSystemParameters(object):
     @nz.setter
     def nz(self, value):
         if value % 2 == 0:
-            raise er.UsageError("Number of Fourier components in the"
-                                + " extended space (nz) cannot be even.")
+            raise ValueError("Number of Fourier components in the"
+                             + " extended space (nz) cannot be even.")
         self._nz = value
         self.k_dim = self.dim * value
         self.nz_max = (value - 1) // 2
@@ -176,7 +175,7 @@ class FixedSystemParameters(object):
     @nc.setter
     def nc(self, value):
         if value % 2 == 0:
-            raise er.UsageError("Number of Fourier components of H"
+            raise ValueError("Number of Fourier components of H"
                                 + " cannot be even.")
         self._nc = value
         self.nc_max = (value - 1) // 2

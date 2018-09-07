@@ -71,9 +71,9 @@ class TestOperatorFidelityDeriv(CustomAssertions):
 
 
 
-class TestExpectationValue(CustomAssertions):
-    def test_expectation_value(self):
-        result = f.expectation_value(v1, u1, v2)
+class TestInnerProduct(CustomAssertions):
+    def test_inner_product(self):
+        result = f.inner(v1, u1, v2)
         self.assertAlmostEqualWithDecimals(result, -0.362492 - 0.013523j, 4)
 
 

@@ -167,12 +167,12 @@ class TestFixedSystemParametersInit(TestCase):
                                           self.omega, self.t, self.decimals)
 
     def test_raise_error_if_nz_even(self):
-        with self.assertRaises(er.UsageError):
+        with self.assertRaises(ValueError):
             fs.FixedSystemParameters(self.dim, self.nz*2, self.nc, self.np,
                                      self.omega, self.t, self.decimals)
 
     def test_raise_error_if_nc_even(self):
-        with self.assertRaises(er.UsageError):
+        with self.assertRaises(ValueError):
             fs.FixedSystemParameters(self.dim, self.nz, self.nc*2, self.np,
                                      self.omega, self.t, self.decimals)
 

@@ -1,15 +1,15 @@
 from tests.assertions import CustomAssertions
 import numpy as np
 import tests.rabi as rabi
+import floq.linalg
 import floq.core.evolution as ev
-import floq.helpers.index as h
 import floq.core.fixed_system as fs
 import floq.errors as er
 
 def generate_fake_spectrum(unique_vals, dim, omega, nz):
     vals = np.array([])
     for i in range(nz):
-        offset = h.i_to_n(i, nz)
+        offset = floq.linalg.i_to_n(i, nz)
         new = unique_vals + offset * omega * np.ones(dim)
         vals = np.append(vals, new)
     return vals

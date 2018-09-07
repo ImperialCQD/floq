@@ -8,9 +8,6 @@ class EigenvalueNumberError(Exception):
                 + repr(self.all_vals) + "\n 'Unique' vals: " \
                 + repr(self.unique_vals)
 
-class UsageError(Exception):
-    pass
-
 class NZTooLargeError(Exception):
     """Thrown when NZ gets too large"""
     pass

@@ -1,22 +1,21 @@
 import numpy as np
-from ..helpers.matrix import adjoint
 
 def transfer_fidelity(u, initial, final):
     """Compute how well the unitary u transfers an initial state |i> to a final
     state |f>, quantified by fid = |<f| u |i>|^2 = <f| u |i><i| u |f>.
 
     Note that initial and final should be supplied as kets."""
-    return np.abs(expectation_value(final, u, initial))**2
+    return np.abs(inner(final, u, initial))**2
 
 def d_transfer_fidelity(u, dus, initial, final):
     """Calculate the gradient of the transfer fidelity:
         fid' = (<f|u|i><i|u|f>)'z
              = <f|u'|i><i|u|f> + <f|u|i><i|u'|f>
              = 2 Re(<f|u'|i><i|u|f>)."""
-    iuf = expectation_value(initial, adjoint(u), final)
-    fui = expectation_value(final, u, initial)
-    return np.real(np.array([expectation_value(final, du, initial) * iuf +
-                             expectation_value(initial, adjoint(du), final) * fui
+    iuf = inner(initial, np.conj(u.T), final)
+    fui = inner(final, u, initial)
+    return np.real(np.array([inner(final, du, initial) * iuf +
+                             inner(initial, np.conj(du.T), final) * fui
                              for du in dus]))
 
 def transfer_distance(u, initial, final):
@@ -54,11 +53,11 @@ def d_operator_distance(u, dus, target):
     """Calculate the gradient of the operator distance."""
     return -d_operator_fidelity(u, dus, target)
 
-def expectation_value(left, operator, right):
+def inner(left, operator, right):
     """Compute <left|operator|right>."""
     leftconj = np.transpose(np.conj(left))
-    return np.dot(np.conj(left).T, np.dot(operator, right))
+    return np.conj(left.T) @ operator @ right
 
 def hilbert_schmidt_product(a, b):
     """Compute the Hilbert-Schmidt inner product between operators a and b."""
-    return np.trace(np.dot(np.matrix(a).getH(), b))
+    return np.trace(np.conj(a.T) @ b)

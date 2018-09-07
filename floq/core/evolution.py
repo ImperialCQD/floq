@@ -1,9 +1,7 @@
 import numba
 import numpy as np
 import scipy.sparse.linalg
-from ..helpers.index import n_to_i, i_to_n
-from ..helpers import blockmatrix as bm
-from ..helpers import matrix as mm
+from .. import linalg
 
 def get_u(hf, params):
     """Calculate the time evolution operator U, given a Fourier transformed
@@ -72,17 +70,17 @@ def numba_assemble_k(hf, dim, k_dim, nz, nc, omega):
     hf_max = (nc - 1) // 2
     k = np.zeros((k_dim, k_dim), dtype=np.complex128)
     for n in range(-hf_max, hf_max + 1):
-        current = hf[n_to_i(n, nc)]
+        current = hf[linalg.n_to_i(n, nc)]
         row = max(0, n)  # if n < 0, start at row 0
         col = max(0, -n)  # if n > 0, start at col 0
         stop_row = min(nz - 1 + n, nz - 1)
         stop_col = min(nz - 1 - n, nz - 1)
         while row <= stop_row and col <= stop_col:
             if n == 0:
-                block = current + np.eye(dim) * omega * i_to_n(row, nz)
-                bm.set_block_in_matrix(block, k, dim, nz, row, col)
+                block = current + np.eye(dim) * omega * linalg.i_to_n(row, nz)
+                linalg.set_block(block, k, dim, nz, row, col)
             else:
-                bm.set_block_in_matrix(current, k, dim, nz, row, col)
+                linalg.set_block(current, k, dim, nz, row, col)
             row = row + 1
             col = col + 1
     return k
@@ -115,8 +113,8 @@ def get_basis(k, p):
     start = find_first_above_value(vals, -0.5 * p.omega)
     picked_vals = vals[start:start + p.dim]
     picked_vecs = np.array([vecs[:, i] for i in range(start, start + p.dim)])
-    for duplicate_set in find_duplicates(picked_vals, p.decimals):
-        picked_vecs[duplicate_set] = mm.gram_schmidt(picked_vecs[duplicate_set])
+    for duplicates in find_duplicates(picked_vals, p.decimals):
+        picked_vecs[duplicates] = linalg.gram_schmidt(picked_vecs[duplicates])
     return picked_vals, picked_vecs
 
 def compute_eigensystem(k, p):
@@ -218,7 +216,7 @@ def numba_calculate_psi(vecs, dim, nz, omega, t):
     for k in range(dim):
         partial = np.zeros(dim, dtype=np.complex128)
         for i in range(nz):
-            num = i_to_n(i, nz)
+            num = linalg.i_to_n(i, nz)
             partial += np.exp(1j * omega * t * num) * vecs[k][i]
         psi[k, :] = partial
     return psi
@@ -237,7 +235,7 @@ def numba_calculate_psidot(vecs, dim, nz, omega, t):
     for k in range(0, dim):
         partial = np.zeros(dim, np.complex128)
         for i in range(nz):
-            num = i_to_n(i, nz)
+            num = linalg.i_to_n(i, nz)
             partial += (1j*omega*num) * np.exp(1j*omega*t*num) * vecs[k][i]
         psidot[k, :] = partial
     return psidot
@@ -283,7 +281,7 @@ def calculate_factors(dk, nz, nz_max, dim, np_, vals, vecs, vecsstar, omega, t):
     # can be computed more efficiently outside the "full" loop
     factors = np.empty([np_, 2*nz+1, dim, dim], dtype=np.complex128)
     for dn in range(-2 * nz_max, 2 * nz_max + 1):
-        idn = n_to_i(dn, 2 * nz)
+        idn = linalg.n_to_i(dn, 2 * nz)
         for i1 in range(dim):
             for i2 in range(dim):
                 v1 = np.roll(vecsstar[i1], dn, axis=0) # not supported by numba!
@@ -300,9 +298,9 @@ def assemble_du(nz, nz_max, dim, np_, alphas, psi, vecsstar):
     for n2 in range(-nz_max, nz_max + 1):
         for i1 in range(dim):
             for i2 in range(dim):
-                product = np.outer(psi[i1], vecsstar[i2, n_to_i(-n2, nz)])
+                product = np.outer(psi[i1], vecsstar[i2, linalg.n_to_i(-n2,nz)])
                 for n1 in range(-nz_max, nz_max + 1):
-                    idn = n_to_i(n1 - n2, 2 * nz)
+                    idn = linalg.n_to_i(n1 - n2, 2 * nz)
                     for c in range(np_):
                         du[c] += alphas[c, idn, i1, i2] * product
 
