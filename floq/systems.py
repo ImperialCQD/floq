@@ -15,9 +15,12 @@ class System:
                        max_nz=999, sparse=True, decimals=10, cache=True):
         """
         Arguments --
-        hamiltonian: (*args, **kwargs) -> 3D np.array of complex --
+        hamiltonian:
+        | (*args, **kwargs) -> 3D np.array of complex,
+        | 3D np.array of complex --
             A function which takes any set of arguments and returns a Fourier
-            representation of the matrix.  The shape of the output array is
+            representation of the matrix, or simply the matrix itself.  The
+            shape of the output array is
                 (modes, N, N),
             where `modes` is the number of Fourier modes (relative to the
             principle frequency `omega`) and `N` is the dimension of the
@@ -47,10 +50,13 @@ class System:
             instances (or disable caching, though this isn't recommended if you
             care about both `u()` and `du_d*()`).
 
-        dhamiltonian: (*args, **kwargs) -> 4D np.array of complex --
+        dhamiltonian:
+        | (*args, **kwargs) -> 4D np.array of complex
+        | 4d np.array of complex --
             A function which takes any set of arguments and returns the
             derivatives of the Fourier representation of the matrix with respect
-            to each of the control parameters in turn.  The shape is
+            to each of the control parameters in turn, or simply the matrix
+            itself.  The shape is
                 (ncontrols, modes, N, N),
             so the first index runs over the controls, and the remaining indices
             are the same as the output of `hamiltonian()`.  The function
@@ -92,8 +98,12 @@ class System:
         self.nz = nz
         self.max_nz = max_nz
         self.omega = omega
-        self.hamiltonian = hamiltonian
-        self.dhamiltonian = dhamiltonian
+        self.hamiltonian = self.__make_callable(hamiltonian)
+        self.dhamiltonian = self.__make_callable(dhamiltonian)
+
+    def __make_callable(self, maybe_callable):
+        return maybe_callable if hasattr(maybe_callable, '__call__')\
+               else lambda *args, **kwargs: maybe_callable
 
     def __compare_args(self, one, two):
         if len(one) != len(two):
@@ -175,16 +185,14 @@ class EnsembleBase(abc.ABC):
         raise NotImplementedError
 
 def rabi(up_energy, down_energy, **kwargs):
+    _hamiltonian = np.zeros((3, 2, 2), dtype=np.complex128)
+    _hamiltonian[1, 0, 0] = up_energy
+    _hamiltonian[1, 1, 1] = down_energy
     def hamiltonian(controls):
-        out = np.zeros((3, 2, 2), dtype=np.complex128)
-        out[0, 1, 0] = out[2, 0, 1] = controls[0]
-        out[1, 0, 0] = up_energy
-        out[1, 1, 1] = down_energy
-        return out
-    deriv = np.zeros((1, 3, 2, 2), dtype=np.complex128)
-    deriv[0, 0, 1, 0] = out[0, 2, 0, 1] = 1.0
-    def dhamiltonian(controls):
-        return deriv
+        _hamiltonian[0, 1, 0] = _hamiltonian[2, 0, 1] = controls[0]
+        return _hamiltonian
+    dhamiltonian = np.zeros((1, 3, 2, 2), dtype=np.complex128)
+    dhamiltonian[0, 0, 1, 0] = dhamiltonian[0, 2, 0, 1] = 1.0
     if 'nz' not in kwargs:
         kwargs['nz'] = 11
     return System(hamiltonian, dhamiltonian, **kwargs)
@@ -231,10 +239,8 @@ def _spin_d_hamiltonian(ncomp):
 def spin(n_components, amplitude, frequency, **kwargs):
     def hamiltonian(controls):
         return _spin_hamiltonian(n_components, frequency, amplitude * controls)
-    deriv = _spin_d_hamiltonian(n_components)
-    def d_hamiltonian(controls):
-        return deriv
-    return System(hamiltonian, d_hamiltonian, **kwargs)
+    dhamiltonian = _spin_d_hamiltonian(n_components)
+    return System(hamiltonian, dhamiltonian, **kwargs)
 
 class SpinEnsemble(EnsembleBase):
     """
