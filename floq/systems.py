@@ -92,14 +92,29 @@ class System:
         self.__args = None
         self.__kwargs = None
         self.__fixed = None
+        self.__nz = nz
         self.cache = cache
         self.sparse = sparse
         self.decimals = decimals
-        self.nz = nz
         self.max_nz = max_nz
         self.omega = omega
         self.hamiltonian = self.__make_callable(hamiltonian)
         self.dhamiltonian = self.__make_callable(dhamiltonian)
+
+    @property
+    def nz(self):
+        # If the `FixedSystem` has a value of `nz`, we want to use that for
+        # future calculations to avoid trying everything again.
+        if self.__fixed is None:
+            return self.__nz
+        return self.__fixed.params.nz
+
+    @nz.setter
+    def nz(self, value):
+        # Remove the `FixedSystem` to force a recalculation on the next pass
+        # (and to remove the `nz` from there too).
+        self.__fixed = None
+        self.__nz = value
 
     def __make_callable(self, maybe_callable):
         return maybe_callable if hasattr(maybe_callable, '__call__')\
@@ -127,7 +142,7 @@ class System:
         Update the underlying `FixedSystem` if the current version was created
         with a different set of control or time parameters.
         """
-        if self.cache\
+        if self.__fixed is not None and self.cache\
            and self.__t == t\
            and self.__compare_args(self.__args, args)\
            and self.__compare_kwargs(self.__kwargs, kwargs):
