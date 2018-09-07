@@ -1,1 +1,1 @@
-from . import blockmatrix, index, matrix, numpy_replacements
+from . import blockmatrix, index, matrix

@@ -1,11 +1,9 @@
+import numba
 import numpy as np
-import scipy.sparse as sp
-import scipy.sparse.linalg as la
+import scipy.sparse.linalg
 from ..helpers.index import n_to_i, i_to_n
-from ..helpers.numpy_replacements import numba_outer, numba_zeros
 from ..helpers import blockmatrix as bm
 from ..helpers import matrix as mm
-from numba import autojit
 
 def get_u(hf, params):
     """Calculate the time evolution operator U, given a Fourier transformed
@@ -59,7 +57,7 @@ def assemble_k(hf, p):
     Fourier-transformed Hamiltonian."""
     return numba_assemble_k(hf, p.dim, p.k_dim, p.nz, p.nc, p.omega)
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def numba_assemble_k(hf, dim, k_dim, nz, nc, omega):
     """Assemble K by placing each component of Hf in turn, which for a fixed
     Fourier index lie on diagonals, with 0 on the
@@ -72,7 +70,7 @@ def numba_assemble_k(hf, dim, k_dim, nz, nc, omega):
     Note that the main diagonal acquires a factor of
         omega * identity * row / column."""
     hf_max = (nc - 1) // 2
-    k = numba_zeros((k_dim, k_dim))
+    k = np.zeros((k_dim, k_dim), dtype=np.complex128)
     for n in range(-hf_max, hf_max + 1):
         current = hf[n_to_i(n, nc)]
         row = max(0, n)  # if n < 0, start at row 0
@@ -95,7 +93,7 @@ def assemble_dk(dhf, p):
     to K, with Hf -> d HF and omega -> 0."""
     return numba_assemble_dk(dhf, p.np, p.dim, p.k_dim, p.nz, p.nc)
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def numba_assemble_dk(dhf, npm, dim, k_dim, nz, nc):
     dk = np.empty((npm, k_dim, k_dim), dtype=np.complex128)
     for c in range(npm):
@@ -125,11 +123,11 @@ def compute_eigensystem(k, p):
     """Find eigenvalues and eigenvectors of k, using the method specified in the
     parameters (sparse is almost always faster, and is the default)."""
     if p.sparse:
-        k = sp.csc_matrix(k)
+        k = scipy.sparse.csc_matrix(k)
         number_of_eigs = min(2 * p.dim, p.k_dim)
         # find number_of_eigs eigenvectors/-values around 0.0
         # -> trimming/sorting the eigensystem is NOT necessary
-        vals, vecs = la.eigs(k, k=number_of_eigs, sigma=0.0)
+        vals, vecs = scipy.sparse.linalg.eigs(k, k=number_of_eigs, sigma=0.0)
     else:
         vals, vecs = trim_eigensystem(*np.linalg.eig(k), p)
     vals = vals.real.astype(np.float64, copy=False)
@@ -154,7 +152,7 @@ def trim_eigensystem(vals, vecs, p):
     cut_vecs = vecs[:, cutoff_left:cutoff_right]
     return cut_vals, cut_vecs
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def find_first_above_value(array, value):
     """Find the index of the first array entry > value."""
     for i, array_value in enumerate(array):
@@ -190,7 +188,7 @@ def find_duplicates(array, decimals):
     # start_indices will always contain 0 first, but np.split doesn't need it.
     return filter(lambda x: x.size > 1, np.split(indices, start_indices[1:]))
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def calculate_phi(vecs):
     """Given an array of eigenvectors vecs, sum over Fourier components in
     each."""
@@ -200,10 +198,10 @@ def calculate_phi(vecs):
         phi[i] = numba_sum_components(vecs[i], dim)
     return phi
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def numba_sum_components(vec, dim):
     n = vec.shape[0]
-    result = numba_zeros(dim)
+    result = np.zeros(dim, dtype=np.complex128)
     for i in range(n):
         result += vec[i]
     return result
@@ -214,11 +212,11 @@ def calculate_psi(vecs, p):
     component."""
     return numba_calculate_psi(vecs, p.dim, p.nz, p.omega, p.t)
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def numba_calculate_psi(vecs, dim, nz, omega, t):
-    psi = numba_zeros((dim, dim))
+    psi = np.zeros((dim, dim), dtype=np.complex128)
     for k in range(dim):
-        partial = numba_zeros(dim)
+        partial = np.zeros(dim, dtype=np.complex128)
         for i in range(nz):
             num = i_to_n(i, nz)
             partial += np.exp(1j * omega * t * num) * vecs[k][i]
@@ -233,11 +231,11 @@ def calculate_psidot(vecs, p):
     """
     return numba_calculate_psidot(vecs, p.dim, p.nz, p.omega, p.t)
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def numba_calculate_psidot(vecs, dim, nz, omega, t):
-    psidot = numba_zeros((dim, dim))
+    psidot = np.zeros((dim, dim), dtype=np.complex128)
     for k in range(0, dim):
-        partial = numba_zeros(dim)
+        partial = np.zeros(dim, np.complex128)
         for i in range(nz):
             num = i_to_n(i, nz)
             partial += (1j*omega*num) * np.exp(1j*omega*t*num) * vecs[k][i]
@@ -295,14 +293,14 @@ def calculate_factors(dk, nz, nz_max, dim, np_, vals, vecs, vecsstar, omega, t):
                         * expectation_value(dk[c], v1, vecs[i2])
     return factors
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def assemble_du(nz, nz_max, dim, np_, alphas, psi, vecsstar):
     """Execute the sum defining dU, taking pre-computed factors into account."""
-    du = numba_zeros((np_, dim, dim))
+    du = np.zeros((np_, dim, dim), dtype=np.complex128)
     for n2 in range(-nz_max, nz_max + 1):
         for i1 in range(dim):
             for i2 in range(dim):
-                product = numba_outer(psi[i1], vecsstar[i2, n_to_i(-n2, nz)])
+                product = np.outer(psi[i1], vecsstar[i2, n_to_i(-n2, nz)])
                 for n1 in range(-nz_max, nz_max + 1):
                     idn = n_to_i(n1 - n2, 2 * nz)
                     for c in range(np_):
@@ -310,7 +308,7 @@ def assemble_du(nz, nz_max, dim, np_, alphas, psi, vecsstar):
 
     return du
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def integral_factors(e1, e2, dn, omega, t):
     if e1 == e2 and dn == 0:
         return -1j * t * np.exp(-1j * t * e1)
@@ -318,7 +316,7 @@ def integral_factors(e1, e2, dn, omega, t):
         return (np.exp(-1j * t * e1) - np.exp(-1j *t * (e2 - omega * dn)))\
                / (dn * omega + e1 - e2)
 
-@autojit(nopython=True)
+@numba.jit(nopython=True)
 def expectation_value(dk, v1, v2):
     """Computes <v1|dk|v2>, assuming v1 is already conjugated."""
     # v1 and v2 are split into Fourier components, we undo that here
