@@ -13,7 +13,7 @@ class System:
     function `h_effective()` is also provided.
     """
     def __init__(self, hamiltonian, dhamiltonian, nz=3, omega=1.0,
-                       max_nz=999, sparse=True, decimals=10):
+                       max_nz=999, sparse=True, decimals=10, cache=True):
         """
         Arguments --
         hamiltonian: (controls: array_like) -> 3D np.array of complex --
@@ -58,12 +58,20 @@ class System:
             The number of decimal places to be considered when checking whether
             the evolution operators have remained unitary.  A larger value is a
             tighter constraint.
+
+        cache: bool --
+            Whether to cache the results of calculations.  This defaults to
+            `True`, and it's typically only useful to set this to `False` for
+            timing purposes.  Only the last used controls, time and additional
+            arguments are cached, so there is no real memory impact even when
+            `True`.
         """
         self.__controls = None
         self.__t = None
         self.__args = None
         self.__kwargs = None
         self.__fixed = None
+        self.cache = cache
         self.sparse = sparse
         self.decimals = decimals
         self.nz = nz
@@ -77,7 +85,8 @@ class System:
         Update the underlying `FixedSystem` if the current version was created
         with a different set of control or time parameters.
         """
-        if self.__t == t\
+        if self.cache\
+           and self.__t == t\
            and np.array_equal(self.__controls, controls)\
            and np.array_equal(self.__args, args)\
            and self.__kwargs == kwargs:
