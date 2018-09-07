@@ -4,7 +4,6 @@ import tests.rabi as rabi
 import floq.linalg
 import floq.core.evolution as ev
 import floq.core.fixed_system as fs
-import floq.errors as er
 
 def generate_fake_spectrum(unique_vals, dim, omega, nz):
     vals = np.array([])

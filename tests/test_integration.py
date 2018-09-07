@@ -168,7 +168,7 @@ class TestRydbergAtoms(CustomAssertions):
 
         try:
             a.u(1.0, ctrl)
-        except floq.NZTooLargeError:
+        except RuntimeError:
             self.fail("nz blew up unexpectedly!")
 
 
@@ -183,5 +183,5 @@ class TestRydbergAtoms(CustomAssertions):
                          0.02228267, -0.00592705, -0.00610819])
         try:
             a.u(1.0, ctrl)
-        except floq.NZTooLargeError:
+        except RuntimeError:
             self.fail("nz blew up unexpectedly!")

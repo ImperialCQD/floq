@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from .. import errors, linalg
+from .. import linalg
 from ..core import evolution as ev
 
 class FixedSystem(object):
@@ -83,8 +83,8 @@ class FixedSystem(object):
             self.params.nz += 2
             logging.debug("Increased nz to {}".format(self.params.nz))
             if self.max_nz < self.params.nz:
-                raise errors.NZTooLargeError("NZ has grown too large: {} > {}"\
-                                           .format(self.params.nz, self.max_nz))
+                raise RuntimeError("NZ has grown too large: {} > {}"\
+                                   .format(self.params.nz, self.max_nz))
             nz_okay, results = self._test_nz()
         self._u, self._vals, self._vecs, self._phi, self._psi = results
 

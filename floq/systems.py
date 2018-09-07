@@ -71,8 +71,8 @@ class System:
 
         max_nz: odd int > 0 --
             The maximum size that `nz` should be allowed to grow to.  If the
-            calculations try to raise `nz` above this value, a
-            `floq.NZTooLargeError` will be raised.
+            calculations try to raise `nz` above this value, a `RuntimeError`
+            will be raised.
 
         sparse: bool -- Whether to use sparse matrix algebra.
 
