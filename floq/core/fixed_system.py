@@ -4,7 +4,8 @@ from .. import linalg
 from ..core import evolution as ev
 
 class FixedSystem(object):
-    """Class that defines and computes a specific time-evolution.
+    """
+    Class that defines and computes a specific time-evolution.
 
     The FixedSystem class serves essentially two purposes: On one hand, it
     contains all information describing a particular time-evolution problem to
@@ -26,7 +27,8 @@ class FixedSystem(object):
         params: an instance of FixedSystemParameters
         decimals: number of decimals used internally for detecting degeneracies
         sparse: if yes, sparse matrix computations are performed
-        max_nz: maximum nz"""
+        max_nz: maximum nz
+    """
     def __init__(self, hf, dhf, nz, omega, t, decimals=10, sparse=True,\
                        max_nz=999):
         self.hf = hf
@@ -42,14 +44,6 @@ class FixedSystem(object):
         self._udot = None
         self._du = None
         self._vals, self._vecs, self._phi, self._psi = None, None, None, None
-
-    def __eq__(self, other):
-        assert isinstance(other, FixedSystem)
-        hf_same = np.array_equal(self.hf, other.hf)
-        dhf_same = np.array_equal(self.dhf, other.dhf)
-        params_same = (self.params.nz, self.params.omega, self.params.t) \
-            == (other.params.nz, other.params.omega, other.params.t)
-        return hf_same and dhf_same and params_same
 
     @property
     def u(self):
@@ -113,12 +107,6 @@ class FixedSystem(object):
             self._compute_u()
         self._du = ev.get_du_from_eigensystem(self.dhf, self._psi, self._vals,
                                               self._vecs, self.params)
-
-class DummyFixedSystem(FixedSystem):
-    """A dummy FixedSystem that can be initialised with arbitrary dimensions
-    without specifying hf and dhf (mainly for testing)."""
-    def __init__(self, **kwargs):
-        self.params = FixedSystemParameters(**kwargs)
 
 class FixedSystemParameters(object):
     """Hold parameters for a FixedSystem.
