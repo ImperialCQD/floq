@@ -4,6 +4,8 @@ import numpy as np
 import floq
 from . import rabi
 from scipy.linalg import logm
+import importlib.machinery
+import importlib.util
 
 # Test whether U and dU are computed correctly
 # in a variety of cases
@@ -86,19 +88,31 @@ class TestRabiUandDUfromFixedSystem(CustomAssertions):
 # NV Centre Spin
 
 class TestSpinUfromSpinSystem(CustomAssertions):
+    def setUp(self):
+        loader = importlib.machinery.SourceFileLoader('spins',
+                                                      'examples/spins.py')
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        self.spins = importlib.util.module_from_spec(spec)
+        loader.exec_module(self.spins)
+
     def test_spin_u_correct(self):
         target = np.array([[0.105818 - 0.324164j, -0.601164 - 0.722718j],
                            [0.601164 - 0.722718j, 0.105818 + 0.324164j]])
 
-        spin = floq.systems.spin(2, 1.0, 1.1, omega=1.5)
+        spin = self.spins.spin(2, 1.0, 1.1, omega=1.5)
         controls = np.array([1.5, 1.5, 1.5, 1.5])
         result = spin.u(1.0, controls)
         self.assertArrayEqual(target, result)
 
 class TestSpinUfromFixedSystem(CustomAssertions):
     def setUp(self):
+        loader = importlib.machinery.SourceFileLoader('spins',
+                                                      'examples/spins.py')
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        self.spins = importlib.util.module_from_spec(spec)
+        loader.exec_module(self.spins)
         controls = np.array([1.2, 1.3, 4.5, 3.3, -0.8, 0.9, 3.98, -4.0, 0.9, 1.0])
-        hf = floq.systems._spin_hamiltonian(5, 0.1, controls)
+        hf = self.spins.hamiltonian(5, 0.1, controls)
         nz = 51
         dim = 2
         omega = 1.3

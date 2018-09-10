@@ -1,9 +1,17 @@
 from unittest import TestCase
 from tests.assertions import CustomAssertions
 import floq.optimization.fidelity as fid
-from floq.systems import SpinEnsemble
 import numpy as np
 from mock import MagicMock
+import importlib.machinery
+import importlib.util
+
+# Import the spins example file as a module, even though it's outside the
+# standard package structure.
+loader = importlib.machinery.SourceFileLoader('spins', 'examples/spins.py')
+spec = importlib.util.spec_from_loader(loader.name, loader)
+spins = importlib.util.module_from_spec(spec)
+loader.exec_module(spins)
 
 
 class TestFidelityBaseIterations(TestCase):
@@ -25,7 +33,7 @@ class TestFidelityBaseIterations(TestCase):
 
 class TestEnsembleFidelity(CustomAssertions):
     def setUp(self):
-        self.ensemble = SpinEnsemble(2, 2, 1.5, np.array([1.1, 1.1]), np.array([1, 1]))
+        self.ensemble = spins.SpinEnsemble(2, 2, 1.5, np.array([1.1, 1.1]), np.array([1, 1]))
 
     def test_correct_in_one_case(self):
         target = np.array([[0.105818 - 0.324164j, -0.601164 - 0.722718j],
