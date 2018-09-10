@@ -8,7 +8,7 @@ def get_u(hf, params):
     Hamiltonian Hf and the parameters of the problem."""
     return get_u_and_eigensystem(hf, params)[0]
 
-def get_u_and_udot(hf, params):
+def get_u_and_du_dt(hf, params):
     """
     Calculate the time evolution operator U, given a Fourier transformed
     Hamiltonian Hf and the parameters of the problem, as well as its time
@@ -19,12 +19,12 @@ def get_u_and_udot(hf, params):
     udot = calculate_udot(phi, psi, psidot, vals, params)
     return u, udot
 
-def get_u_and_du(hf, dhf, params):
+def get_u_and_du_dcontrols(hf, dhf, params):
     """Calculate the time evolution operator U given a Fourier transformed
     Hamiltonian Hf, as well as its derivative dU given dHf, and the parameters
     of the problem."""
     u, vals, vecs, phi, psi = get_u_and_eigensystem(hf, params)
-    du = get_du_from_eigensystem(dhf, psi, vals, vecs, params)
+    du = get_du_dcontrols_from_eigensystem(dhf, psi, vals, vecs, params)
     return u, du
 
 def get_u_and_eigensystem(hf, params):
@@ -37,11 +37,11 @@ def get_u_and_eigensystem(hf, params):
     psi = calculate_psi(vecs, params)
     return calculate_u(phi, psi, vals, params), vals, vecs, phi, psi
 
-def get_du_from_eigensystem(dhf, psi, vals, vecs, params):
+def get_du_dcontrols_from_eigensystem(dhf, psi, vals, vecs, params):
     dk = assemble_dk(dhf, params)
     return calculate_du(dk, psi, vals, vecs, params)
 
-def get_udot_from_eigensystem(phi, psi, vals, vecs, params):
+def get_du_dt_from_eigensystem(phi, psi, vals, vecs, params):
     """
     Calculate the time evolution operator U, given a Fourier transformed
     Hamiltonian Hf and the parameters of the problem, as well as its time

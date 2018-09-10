@@ -1,114 +1,114 @@
 import logging
 import numpy as np
 from .. import linalg
-from ..core import evolution as ev
+from . import evolution
 
-class FixedSystem(object):
+class FixedSystem:
     """
-    Class that defines and computes a specific time-evolution.
-
-    The FixedSystem class serves essentially two purposes: On one hand, it
-    contains all information describing a particular time-evolution problem to
-    be solved numerically: hf, dhf and various parameters collected in an
-    instance of FixedSystemParameters.
-
-    On the other hand, it interfaces with the core.evolution module, computing u
-    and du and performing caching and various house-keeping operations, in
-    particular increasing nz if U is not unitary for a given choice.
-
-    Methods
-        u: computes u / returns already computed u
-        du: computes du / returns already computed du
-
-    Attributes:
-        hf: the Fourier transformed Hamiltonian (ndarray, square)
-        dhf: its derivative with respect to the controls (ndarray of square
-             ndarrays), the first index running over the control parameters
-        params: an instance of FixedSystemParameters
-        decimals: number of decimals used internally for detecting degeneracies
-        sparse: if yes, sparse matrix computations are performed
-        max_nz: maximum nz
+    Class that defines and computes a specific time-evolution.  It currently
+    provides a layer between `floq.System` and `floq.core.evolution`, although
+    this may be liable to change in the future.
     """
-    def __init__(self, hf, dhf, nz, omega, t, decimals=10, sparse=True,\
-                       max_nz=999):
-        self.hf = hf
-        self.dhf = dhf
+    def __init__(self, hamiltonian, dhamiltonian, nz, omega, t,
+                       decimals=10, sparse=True, max_nz=999):
+        """
+        Arguments --
+        hamiltonian: 3D np.array of complex as in a list of 2D arrays --
+            The shape is
+                (n_fourier, dimension, dimension)
+            where `n_fourier` is the total number of Fourier modes, and
+            `dimension` is the dimension of the original problem Hamiltonian.
+            The first shape argument must be odd, because if the maximum
+            absolute value of a Fourier mode considered is `m`, then the index
+            runs as
+                -m, -m + 1, ..., 0, 1, ..., m.
+
+        dhamiltonian: 4D np.array of complex --
+            This is an array containing the derivative of `hamiltonian` with
+            respect to each of the control parameters in turn.  The shape is
+                (n_controls, n_fourier, dimension, dimension),
+            so the first index runs over the controls, and the other three are
+            the same as `hamiltonian`.
+
+        nz: odd int --
+            The initial number of Brillouin zones to consider.  This will be
+            increased internally up to `max_nz` if necessary to maintain
+            unitarity.
+
+        omega: float --
+            The angular frequency of the Fourier transformation (so it's 2pi
+            divided by the period).
+
+        t: float --
+            The time to evaluate the time evolution operator at.
+
+        decimals: int --
+            The number of decimal places of precision to use when comparing the
+            created operator's unitary properties with the identity.
+
+        sparse: bool --
+            Whether to use sparse matrix algebra when diagonalising `K`.
+
+        max_nz: int --
+            The maximum number of Brillouin zones to use.  If the created
+            operator is still not unitary once this value has been reached, a
+            `RuntimeError` will be raised.
+        """
+        self.hamiltonian = hamiltonian
+        self.dhamiltonian = dhamiltonian
         self.max_nz = max_nz
         # Inferred parameters
-        dim = hf.shape[1]
-        nc = hf.shape[0]
-        np = dhf.shape[0]
-        self.params = FixedSystemParameters(dim, nz, nc, np, omega, t, decimals,
-                                            sparse=sparse)
-        self._u = None
-        self._udot = None
-        self._du = None
-        self._vals, self._vecs, self._phi, self._psi = None, None, None, None
+        dimension = hamiltonian.shape[1]
+        n_fourier = hamiltonian.shape[0]
+        n_controls = dhamiltonian.shape[0]
+        self.parameters = FixedSystemParameters(dimension, nz, n_fourier,
+                                                n_controls, omega, t, decimals,
+                                                sparse=sparse)
+        for x in ('u', 'du_dt', 'du_dcontrols', 'vals', 'vecs', 'phi', 'psi'):
+            setattr(self, f"_FixedSystem__{x}", None)
+
+    def __compute_eigensystem_and_u(self):
+        while self.__u is None:
+            if self.parameters.nz > self.max_nz:
+                raise RuntimeError("NZ has grown too large: {} > {}"\
+                                   .format(self.parameters.nz, self.max_nz))
+            results = evolution.get_u_and_eigensystem(self.hamiltonian,
+                                                      self.parameters)
+            if linalg.is_unitary(results[0], self.parameters.decimals):
+                self.__u, self.__vals, self.__vecs, self.__phi, self.__psi =\
+                    results
+            else:
+                self.parameters.nz += 2
+                logging.debug(f"Increased nz to {self.parameters.nz}")
 
     @property
     def u(self):
-        if self._u is not None:
-            return self._u
-        else:
-            self._compute_u()
-            return self._u
+        if self.__u is not None:
+            return self.__u
+        self.__compute_eigensystem_and_u()
+        return self.__u
 
     @property
     def du_dt(self):
-        if self._udot is not None:
-            return self._udot
-        else:
-            self._compute_udot()
-            return self._udot
+        if self.__du_dt is not None:
+            return self.__du_dt
+        self.__compute_eigensystem_and_u()
+        self.__du_dt = evolution.get_du_dt_from_eigensystem(
+                    self.__phi, self.__psi, self.__vals, self.__vecs,
+                    self.parameters)
+        return self.__du_dt
 
     @property
     def du_dcontrols(self):
-        if self._du is not None:
-            return self._du
-        else:
-            self._compute_du()
-            return self._du
+        if self.__du_dcontrols is not None:
+            return self.__du_dcontrols
+        self.__compute_eigensystem_and_u()
+        self.__du_dcontrols = evolution.get_du_dcontrols_from_eigensystem(
+                self.dhamiltonian, self.__psi, self.__vals, self.__vecs,
+                self.parameters)
+        return self.__du_dcontrols
 
-    def _compute_u(self):
-        """Increase nz until U can be computed, then set U and the intermediary
-        results."""
-        nz_okay, results = self._test_nz()
-        while not nz_okay:
-            self.params.nz += 2
-            logging.debug("Increased nz to {}".format(self.params.nz))
-            if self.max_nz < self.params.nz:
-                raise RuntimeError("NZ has grown too large: {} > {}"\
-                                   .format(self.params.nz, self.max_nz))
-            nz_okay, results = self._test_nz()
-        self._u, self._vals, self._vecs, self._phi, self._psi = results
-
-    def _test_nz(self):
-        """Try to compute U with the current nz.
-
-        If an error occurs, or U is not unitary,
-            return [False, []]
-        else
-            return [True, [u, vecs, vals, phi, psi]]."""
-        results = ev.get_u_and_eigensystem(self.hf, self.params)
-        if linalg.is_unitary(results[0], digits=self.params.decimals):
-            return True, results
-        else:
-            return False, ()
-
-    def _compute_udot(self):
-        if self._u is None:
-            self._compute_u()
-        self._udot = ev.get_udot_from_eigensystem(self._phi, self._psi,
-                                                  self._vals, self._vecs,
-                                                  self.params)
-
-    def _compute_du(self):
-        if self._u is None:
-            self._compute_u()
-        self._du = ev.get_du_from_eigensystem(self.dhf, self._psi, self._vals,
-                                              self._vecs, self.params)
-
-class FixedSystemParameters(object):
+class FixedSystemParameters:
     """Hold parameters for a FixedSystem.
 
     - dim: the size of the Hilbert space.

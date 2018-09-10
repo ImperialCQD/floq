@@ -77,7 +77,8 @@ class TestRabiUandDUfromFixedSystem(CustomAssertions):
                                                          np=1)
         self.du = np.array([[-0.43745 + 0.180865j, 0.092544 - 0.0993391j],
                             [-0.0611011 - 0.121241j, -0.36949-0.295891j]])
-        self.ucal, self.ducal = floq.core.evolution.get_u_and_du(hf, dhf, p)
+        self.ucal, self.ducal =\
+            floq.core.evolution.get_u_and_du_dcontrols(hf, dhf, p)
 
     def test_is_correct_du(self):
         self.assertArrayEqual(self.ducal, self.du)

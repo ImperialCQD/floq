@@ -20,19 +20,19 @@ class TestFixedSystemInit(CustomAssertions):
 
 
     def test_set_hf(self):
-        self.assertArrayEqual(self.problem.hf, self.hf)
+        self.assertArrayEqual(self.problem.hamiltonian, self.hf)
 
     def test_set_dhf(self):
-        self.assertArrayEqual(self.problem.dhf, self.dhf)
+        self.assertArrayEqual(self.problem.dhamiltonian, self.dhf)
 
     def test_set_dim(self):
-        self.assertEqual(self.problem.params.dim, 10)
+        self.assertEqual(self.problem.parameters.dim, 10)
 
     def test_set_nc(self):
-        self.assertEqual(self.problem.params.nc, 5)
+        self.assertEqual(self.problem.parameters.nc, 5)
 
     def test_set_np(self):
-        self.assertEqual(self.problem.params.np, 3)
+        self.assertEqual(self.problem.parameters.np, 3)
 
 
 
@@ -48,14 +48,11 @@ class TestFixedSystemMaxNZ(TestCase):
         omega = 5.0
         t = 20.5
         self.s = fs.FixedSystem(hf, dhf, nz, omega, t)
-        self.s.max_nz = 9
+        self.s.max_nz = 1
 
     def test_raise_MaxNZError(self):
-        res = (self.s._test_nz())[1]
-        mock = MagicMock(return_value=[False, res])  # make nz test fail
-        self.s._test_nz = mock
         with self.assertRaises(RuntimeError):
-            self.s.u()
+            self.s.u
 
 class TestEvolveFixedSystem(CustomAssertions):
     def setUp(self):
@@ -106,46 +103,6 @@ class TestEvolveFixedSystemWithDerivs(CustomAssertions):
 
     def test_is_correct_du(self):
         self.assertArrayEqual(self.ducal, self.du)
-
-
-
-class TestFixedSystemCaching(TestCase):
-    def setUp(self):
-        g = 0.5
-        e1 = 1.2
-        e2 = 2.8
-        hf = rabi.hf(g, e1, e2)
-        dhf = np.array([rabi.hf(1.0, 0, 0)])
-
-        nz = 15
-        dim = 2
-        omega = 5.0
-        t = 20.5
-        self.s = fs.FixedSystem(hf, dhf, nz, omega, t)
-
-    def test_compute_u_once(self):
-        u = self.s.u
-        mock = MagicMock()
-        self.s._compute_u = mock
-        u = self.s.u
-        mock.assert_not_called()
-
-    def test_compute_udot_once(self):
-        udot = self.s.du_dt
-        mock = MagicMock()
-        self.s._compute_udot = mock
-        udot = self.s.du_dt
-        mock.assert_not_called()
-
-
-    def test_compute_du_once(self):
-        du = self.s.du_dcontrols
-        mock = MagicMock()
-        self.s._compute_du = mock
-        du = self.s.du_dcontrols
-        mock.assert_not_called()
-
-
 
 class TestFixedSystemParametersInit(TestCase):
     def setUp(self):
