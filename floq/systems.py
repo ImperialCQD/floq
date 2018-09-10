@@ -107,7 +107,7 @@ class System:
         # future calculations to avoid trying everything again.
         if self.__fixed is None:
             return self.__nz
-        return self.__fixed.params.nz
+        return self.__fixed.parameters.nz
 
     @nz.setter
     def nz(self, value):
