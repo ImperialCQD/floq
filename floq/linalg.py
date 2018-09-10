@@ -31,14 +31,13 @@ def set_block(block, matrix, dim_block, n_block, row, col):
     stop_col = start_col + dim_block
     matrix[start_row:stop_row, start_col:stop_col] = block
 
-def is_unitary(u, tolerance=1e-10):
+def is_unitary(u, digits):
     """Return True if u^dagger u is equal to the unit matrix with the given
     tolerance."""
-    digits = int(-np.log10(tolerance))
     unitary = np.eye(u.shape[0], dtype=np.complex128)
     # The rounding is required in edge cases?
     product = np.round(np.conj(u.T) @ u, digits - 1)
-    return np.allclose(product, unitary, atol=tolerance)
+    return np.allclose(product, unitary, atol=0.1**digits)
 
 def gram_schmidt(vecs):
     """Computes an orthonormal basis for the given set of (complex) vectors.

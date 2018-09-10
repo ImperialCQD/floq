@@ -90,7 +90,7 @@ class FixedSystem(object):
         else
             return [True, [u, vecs, vals, phi, psi]]."""
         results = ev.get_u_and_eigensystem(self.hf, self.params)
-        if linalg.is_unitary(results[0], tolerance=10**-self.params.decimals):
+        if linalg.is_unitary(results[0], digits=self.params.decimals):
             return True, results
         else:
             return False, ()
