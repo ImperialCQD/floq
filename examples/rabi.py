@@ -18,8 +18,8 @@ def rabi(energy_split, **kwargs):
         return _hamiltonian
     dhamiltonian = np.zeros((1, 3, 2, 2), dtype=np.complex128)
     dhamiltonian[0, 0, 1, 0] = dhamiltonian[0, 2, 0, 1] = 1.0
-    if 'nz' not in kwargs:
-        kwargs['nz'] = 11
+    if 'n_zones' not in kwargs:
+        kwargs['n_zones'] = 11
     return floq.System(hamiltonian, dhamiltonian, **kwargs)
 
 if __name__ == '__main__':

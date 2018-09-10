@@ -1,5 +1,6 @@
 import numpy as np
 import abc
+import logging
 from . import core
 
 class System:
@@ -11,8 +12,8 @@ class System:
     The base methods are `u()`, `du_dcontrols()` and `du_dt()`.  The convenience
     function `h_effective()` is also provided.
     """
-    def __init__(self, hamiltonian, dhamiltonian, nz=3, omega=1.0,
-                       max_nz=999, sparse=True, decimals=10, cache=True):
+    def __init__(self, hamiltonian, dhamiltonian, n_zones=1, omega=1.0,
+                       max_zones=999, sparse=True, decimals=10, cache=True):
         """
         Arguments --
         hamiltonian:
@@ -62,17 +63,17 @@ class System:
             are the same as the output of `hamiltonian()`.  The function
             arguments must match those of `hamiltonian`.
 
-        nz: odd int > 0 --
+        n_zones: odd int > 0 --
             The initial number of 'Brillouin zones' to be considered.
 
         omega: float > 0 --
             The numerical value of the principle frequency (the frequency that
             the Fourier transform is with respect to).
 
-        max_nz: odd int > 0 --
-            The maximum size that `nz` should be allowed to grow to.  If the
-            calculations try to raise `nz` above this value, a `RuntimeError`
-            will be raised.
+        max_zones: odd int > 0 --
+            The maximum size that `n_zones` should be allowed to grow to.  If
+            the calculations try to raise `zones` above this value, a
+            `RuntimeError` will be raised.
 
         sparse: bool -- Whether to use sparse matrix algebra.
 
@@ -92,29 +93,30 @@ class System:
         self.__args = None
         self.__kwargs = None
         self.__fixed = None
-        self.__nz = nz
+        self.__n_components = None
+        self.__n_zones= n_zones
         self.cache = cache
         self.sparse = sparse
         self.decimals = decimals
-        self.max_nz = max_nz
+        self.max_zones = max_zones
         self.omega = omega
         self.hamiltonian = self.__make_callable(hamiltonian)
         self.dhamiltonian = self.__make_callable(dhamiltonian)
 
     @property
-    def nz(self):
-        # If the `FixedSystem` has a value of `nz`, we want to use that for
+    def n_zones(self):
+        # If the `FixedSystem` has a value of `n_zones`, we want to use that for
         # future calculations to avoid trying everything again.
         if self.__fixed is None:
-            return self.__nz
+            return self.__n_zones
         return self.__fixed.parameters.nz
 
-    @nz.setter
-    def nz(self, value):
+    @n_zones.setter
+    def n_zones(self, value):
         # Remove the `FixedSystem` to force a recalculation on the next pass
         # (and to remove the `nz` from there too).
         self.__fixed = None
-        self.__nz = value
+        self.__n_zones = value
 
     def __make_callable(self, maybe_callable):
         return maybe_callable if hasattr(maybe_callable, '__call__')\
@@ -149,11 +151,17 @@ class System:
             return
         hamiltonian = self.hamiltonian(*args, **kwargs)
         dhamiltonian = self.dhamiltonian(*args, **kwargs)
-        self.__fixed = core.FixedSystem(hamiltonian, dhamiltonian, self.nz,
+        n_components = hamiltonian.shape[0]
+        if self.__n_zones is None or n_components > self.__n_zones:
+            logging.debug(f"Increasing number of zones to {n_components} to"
+                          + " match the number of Fourier components in the"
+                          + " Hamiltonian.")
+            self.n_zones = n_components
+        self.__fixed = core.FixedSystem(hamiltonian, dhamiltonian, self.n_zones,
                                         self.omega, t,
                                         decimals=self.decimals,
                                         sparse=self.sparse,
-                                        max_nz=self.max_nz)
+                                        max_zones=self.max_zones)
         self.__t = t
         self.__args = tuple(args)
         self.__kwargs = kwargs.copy()

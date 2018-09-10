@@ -9,8 +9,8 @@ class FixedSystem:
     provides a layer between `floq.System` and `floq.core.evolution`, although
     this may be liable to change in the future.
     """
-    def __init__(self, hamiltonian, dhamiltonian, nz, omega, t,
-                       decimals=10, sparse=True, max_nz=999):
+    def __init__(self, hamiltonian, dhamiltonian, n_zones, omega, time,
+                       decimals=10, sparse=True, max_zones=999):
         """
         Arguments --
         hamiltonian: 3D np.array of complex as in a list of 2D arrays --
@@ -56,22 +56,25 @@ class FixedSystem:
         """
         self.hamiltonian = hamiltonian
         self.dhamiltonian = dhamiltonian
-        self.max_nz = max_nz
+        self.max_zones = max_zones
         # Inferred parameters
         dimension = hamiltonian.shape[1]
         n_fourier = hamiltonian.shape[0]
         n_controls = dhamiltonian.shape[0]
-        self.parameters = FixedSystemParameters(dimension, nz, n_fourier,
-                                                n_controls, omega, t, decimals,
-                                                sparse=sparse)
+        self.parameters = FixedSystemParameters(dimension, n_zones, n_fourier,
+                                                n_controls, omega, time,
+                                                decimals, sparse=sparse)
         for x in ('u', 'du_dt', 'du_dcontrols', 'vals', 'vecs', 'phi', 'psi'):
             setattr(self, f"_FixedSystem__{x}", None)
 
     def __compute_eigensystem_and_u(self):
         while self.__u is None:
-            if self.parameters.nz > self.max_nz:
-                raise RuntimeError("NZ has grown too large: {} > {}"\
-                                   .format(self.parameters.nz, self.max_nz))
+            if self.parameters.nz > self.max_zones:
+                raise RuntimeError(
+                    "The number of Brillouin zones became too large before the"
+                    + " time-evolution operator became unitary.  Currently at"
+                    + f" {self.parameters.nz}, but the maximum was"
+                    + f" {self.max_zones}.")
             results = evolution.get_u_and_eigensystem(self.hamiltonian,
                                                       self.parameters)
             if linalg.is_unitary(results[0], self.parameters.decimals):

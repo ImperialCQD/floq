@@ -48,7 +48,7 @@ class TestFixedSystemMaxNZ(TestCase):
         omega = 5.0
         t = 20.5
         self.s = fs.FixedSystem(hf, dhf, nz, omega, t)
-        self.s.max_nz = 1
+        self.s.max_zones = 1
 
     def test_raise_MaxNZError(self):
         with self.assertRaises(RuntimeError):

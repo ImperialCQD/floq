@@ -177,7 +177,7 @@ class TestRydbergAtoms(CustomAssertions):
         r0 = np.array([0.72480473, 0.08708385, -0.87074443])
         rvec = r*r0/np.linalg.norm(r0)
 
-        a = rydberg_atoms(3, rvec, 2.0, -200.0, 1.0, nz=219, max_nz=221)
+        a = rydberg_atoms(3, rvec, 2.0, -200.0, 1.0, n_zones=219, max_zones=221)
 
         ctrl = np.array([0.00840315, 0.02027272, -0.03879325, 0.01801073, 0.03176829, -0.02522575])
 
@@ -193,7 +193,8 @@ class TestRydbergAtoms(CustomAssertions):
         r = 5.0
         r0 = np.array([0.72480473, 0.08708385, -0.87074443])
         rvec = r*r0/np.linalg.norm(r0)
-        a = rydberg_atoms(3, rvec, 2.0, -200.0, omega=1.0, nz=207, max_nz=211)
+        a = rydberg_atoms(3, rvec, 2.0, -200.0, omega=1.0, n_zones=207,
+                          max_zones=211)
         ctrl = np.array([-0.01672054, 0.01984895, -0.05714435,
                          0.02228267, -0.00592705, -0.00610819])
         try:

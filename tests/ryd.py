@@ -18,10 +18,10 @@ def rydberg_atoms(n_components, rvec, mu, delta, omega, **kwargs):
     def _hamiltonian(controls):
         update_hf(h_base, n_components, controls, mu, factor_haf)
         return h_base
-    if 'nz' not in kwargs:
-        kwargs['nz'] = 11
-    if 'max_nz' not in kwargs:
-        kwargs['max_nz'] = 1001
+    if 'n_zones' not in kwargs:
+        kwargs['n_zones'] = 11
+    if 'max_zones' not in kwargs:
+        kwargs['max_zones'] = 1001
     return floq.System(_hamiltonian, lambda controls: dh_base,
                        omega=2*np.pi*omega, **kwargs)
 
