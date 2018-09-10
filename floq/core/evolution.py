@@ -187,22 +187,13 @@ def find_duplicates(array, decimals):
     return filter(lambda x: x.size > 1, np.split(indices, start_indices[1:]))
 
 @numba.jit(nopython=True)
-def calculate_phi(vecs):
-    """Given an array of eigenvectors vecs, sum over Fourier components in
-    each."""
-    dim = vecs.shape[0]
-    phi = np.empty((dim, dim), dtype=np.complex128)
-    for i in range(dim):
-        phi[i] = numba_sum_components(vecs[i], dim)
-    return phi
-
-@numba.jit(nopython=True)
-def numba_sum_components(vec, dim):
-    n = vec.shape[0]
-    result = np.zeros(dim, dtype=np.complex128)
-    for i in range(n):
-        result += vec[i]
-    return result
+def calculate_phi(k_eigenvectors):
+    """
+    The `shape[1]` index runs over the Fourier modes.  This contracts the
+    abstract extended Hilbert space back into the same dimension as the
+    original (non-Fourier) Hamiltonian.
+    """
+    return np.sum(k_eigenvectors, axis=1)
 
 def calculate_psi(vecs, p):
     """Given an array of eigenvectors vecs, sum over all Fourier components in
