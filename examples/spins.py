@@ -46,7 +46,7 @@ def spin(n_components, amplitude, frequency, **kwargs):
     _dhamiltonian = dhamiltonian(n_components)
     return floq.System(_hamiltonian, _dhamiltonian, **kwargs)
 
-class SpinEnsemble(floq.systems.EnsembleBase):
+class SpinEnsemble(floq.system.EnsembleBase):
     """
     A system of n non-interacting spins, where each spin is described by the
     Hamiltonian

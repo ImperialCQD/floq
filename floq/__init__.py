@@ -1,4 +1,4 @@
-from . import core, optimization, systems, parallel
+from . import core, optimization, system, parallel
 
-from .systems import System
+from .system import System
 System.__module__ = __name__
