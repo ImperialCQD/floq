@@ -1,7 +1,259 @@
 import numba
 import numpy as np
 import scipy.sparse.linalg
+import collections
 from .. import linalg
+
+Eigensystem = collections.namedtuple('Eigensystem', (
+                                         'frequency',
+                                         'quasienergies',
+                                         'k_eigenvectors',
+                                         'initial_floquet_bras',
+                                         'abstract_ket_coefficients',
+                                         'k_derivatives',
+                                    ))
+
+def eigensystem(parameters, hamiltonian, dhamiltonian=None):
+    """
+    Calculate the time-invariant eigensystem of the Floquet system.  This needs
+    to be recalculated whenever the Hamiltonian (or its derivatives) change, but
+    not if the time changes.  The result of this can be passed to the other
+    calculation routines.
+
+    If the Hamiltonian's derivative is not supplied, then the derivatives of the
+    `K` matrix won't be build, which saves time but prevents the usage of the
+    `du_dcontrols()` function.
+
+    Arguments --
+    parameters: FixedSystemParameters --
+        This will change in the future, because the new code mostly just infers
+        all the parameters that are stored in it, and instantiating one of those
+        classes requires a time, which the new code does not need.
+
+    hamiltonian: 3D np.array of complex --
+        This must be the matrix of a Hamiltonian, split into Fourier components
+        in the same manner used in the return values of
+        `floq.System.hamiltonian()`.
+
+    dhamiltonian: 4D np.array of complex --
+        Optionally, the matrix form of the derivatives of a Hamiltonian, as in
+        the output of `floq.System.dhamiltonian()`.  If not supplied, then the
+        resulting `Eigensystem` cannot be used with the `du_dcontrols()`
+        function.
+
+    Returns:
+    Eigensystem --
+        A collection of parameters that are not time-dependent, which can be
+        passed to the time-specific functions.
+    """
+    n_zones = parameters.nz
+    k = assemble_k(hamiltonian, parameters)
+    quasienergies, k_eigenvectors = find_eigensystem(k, parameters)
+    # Sum the eigenvectors along the Fourier-mode axis at `time = 0` to contract
+    # the abstract Hilbert space back to the original one.
+    initial_floquet_bras = np.conj(np.sum(k_eigenvectors, axis=1))
+    fourier_modes = np.arange((1-n_zones)//2, 1 + (n_zones//2))
+    abstract_ket_coefficients = 1j * parameters.omega * fourier_modes
+    k_derivatives = None if dhamiltonian is None\
+                    else assemble_dk(dhamiltonian, parameters)
+    return Eigensystem(parameters.omega, quasienergies, k_eigenvectors,
+                       initial_floquet_bras, abstract_ket_coefficients,
+                       k_derivatives)
+
+@numba.jit(nopython=True)
+def current_floquet_kets(eigensystem, time):
+    """
+    Get the Floquet basis kets at a given time.  These are the
+        |psi_j(t)> = exp(-i energy[j] t) |phi_j(t)>,
+    using the notation in Marcel's thesis, equation (1.13).
+    """
+    weights = np.exp(time * eigensystem.abstract_ket_coefficients)
+    weights = weights.reshape((1, -1, 1))
+    return np.sum(weights * eigensystem.k_eigenvectors, axis=1)
+
+@numba.jit(nopython=True)
+def d_current_floquet_kets(eigensystem, time):
+    """
+    Get the time derivatives of the Floquet basis kets
+        (d/dt)|psi_j(t)> = -i energy[j] exp(-i energy[j] t) |phi_j(t)>
+                           + exp(-i energy[j] t) (d/dt)|phi_j(t)>,
+    which are used in calculating `dU/dt`.
+    """
+    weights = np.exp(time * eigensystem.abstract_ket_coefficients)
+    weights = weights * eigensystem.abstract_ket_coefficients
+    weights = weights.reshape((1, -1, 1))
+    return np.sum(weights * eigensystem.k_eigenvectors, axis=1)
+
+@numba.jit(nopython=True)
+def u(eigensystem, time):
+    """
+    Calculate the time-evolution operator at a certain time, using a
+    pre-computed eigensystem.
+    """
+    dimension = eigensystem.quasienergies.shape[0]
+    out = np.zeros((dimension, dimension), dtype=np.complex128)
+    kets = current_floquet_kets(eigensystem, time)
+    energy_phases = np.exp(-1j * time * eigensystem.quasienergies)
+    # This sum _can_ be achieved using only vectorised numpy operations, but it
+    # involves allocating space for the whole set of outer products.  Easier to
+    # just use numba to compile the loop.
+    for mode in range(dimension):
+        out += np.outer(energy_phases[mode] * kets[mode],
+                        eigensystem.initial_floquet_bras[mode])
+    return out
+
+@numba.jit(nopython=True)
+def du_dt(eigensystem, time):
+    """
+    Calculate the time derivative of a time-evolution operator at a certain
+    time, using a pre-computed eigensystem.
+    """
+    dimension = eigensystem.quasienergies.shape[0]
+    out = np.zeros((dimension, dimension), dtype=np.complex128)
+    # Manually allocate calculation space for inside the loop.
+    tmp = np.zeros_like(out)
+    # These two function calls have some redundancy, but it's not really
+    # important in the scheme of things.
+    kets = current_floquet_kets(eigensystem, time)
+    dkets_dt = d_current_floquet_kets(eigensystem, time)
+    energy_factors = -1j * eigensystem.quasienergies
+    energy_phases = np.exp(time * energy_factors)
+    for mode in range(dimension):
+        # Use the pre-allocated computation space to save allocations.
+        np.outer(energy_phases[mode] * dkets_dt[mode],
+                 eigensystem.initial_floquet_bras[mode], out=tmp)
+        out += tmp
+        np.outer(energy_phases[mode] * kets[mode],
+                 eigensystem.initial_floquet_bras[mode], out=tmp)
+        out += energy_factors[mode] * tmp
+    return out
+
+@numba.jit(nopython=True)
+def conjugate_rotate_into(out, input, amount):
+    """
+    Equivalent to `out = np.conj(np.roll(input, amount, axis=0))`, but `roll()`
+    isn't supported by numba.  Also, we can directly write into `out` so we
+    don't have any allocations in tight loops.
+    """
+    if amount < 0:
+        out[:amount] = np.conj(input[abs(amount):])
+        out[amount:] = np.conj(input[:abs(amount)])
+    elif amount > 0:
+        out[amount:] = np.conj(input[:-amount])
+        out[:amount] = np.conj(input[-amount:])
+    else:
+        out[:] = np.conj(input)
+
+@numba.jit(nopython=True)
+def integral_factors(eigensystem, time):
+    """
+    Calculate the "integral factors" for use in the control-derivatives of the
+    time-evolution operator.  These are the
+        e(j, j'; delta mu)
+    from equation (1.48) in Marcel's thesis.
+    """
+    # This function is comparatively long compared to the old version because it
+    # does some questionable loop reorganisation to prevent `if` statements in
+    # deeply nested loops.
+    n_zones = eigensystem.k_eigenvectors.shape[1]
+    dimension = eigensystem.k_eigenvectors.shape[2]
+    energies = eigensystem.quasienergies
+    frequency = eigensystem.frequency
+    energy_phases = np.exp(-1j * time * energies)
+    differences = np.arange(1.0 - n_zones, n_zones)
+    diff_exponentials = np.exp(1j * time * frequency * differences)
+    out = np.empty((differences.shape[0], dimension, dimension),
+                   dtype=np.complex128)
+    # Fill diagonal of 0 difference, then treat it specially to avoid an `if`
+    # statement in a tightly nested loop.  Can be replaced by
+    #   np.fill_diagonal(out[n_zones - 1], -1j * time * energy_phases)
+    # once numba 0.40 is out.
+    diag = -1j * time * energy_phases
+    for i in range(energies.shape[0]):
+        out[n_zones - 1, i, i] = diag[i]
+    for i in range(energies.shape[0]):
+        for j in range(i):
+            value = (energy_phases[i] - energy_phases[j])\
+                    / (energies[i] - energies[j])
+            out[n_zones - 1, i, j] = out[n_zones - 1, j, i] = value
+    # Handle all the rest of the values, making sure to avoid the zero
+    # difference case.
+    # Handle negative differences first.
+    for diff_index in range(n_zones - 1):
+        separation = frequency * differences[diff_index]
+        exponential = diff_exponentials[diff_index]
+        for i in range(energies.shape[0]):
+            numer = energy_phases[i] - energy_phases*exponential
+            denom = energies[i] + separation - energies
+            out[diff_index, i] = numer / denom
+    for diff_index in range(n_zones, differences.shape[0]):
+        separation = frequency * differences[diff_index]
+        exponential = diff_exponentials[diff_index]
+        for i in range(energies.shape[0]):
+            numer = energy_phases[i] - energy_phases*exponential
+            denom = energies[i] + separation - energies
+            out[diff_index, i] = numer / denom
+    return out
+
+@numba.jit(nopython=True)
+def combined_factors(eigensystem, time):
+    """
+    Calculate the "combined factors" for use in the control-derivatives of the
+    time evolution operator.  These are the
+        f(j, j'; delta mu)
+    from equations (1.50) and (2.7) in Marcel's thesis.
+    """
+    n_parameters = eigensystem.k_derivatives.shape[0]
+    n_zones = eigensystem.k_eigenvectors.shape[1]
+    dimension = eigensystem.k_eigenvectors.shape[2]
+    factors = np.empty((2*n_zones - 1, dimension, dimension, n_parameters),
+                       dtype=np.complex128)
+    rolled_k_eigenbra = np.zeros((n_zones, dimension),
+                                 dtype=np.complex128)
+    k_eigenkets = eigensystem.k_eigenvectors
+    energies = eigensystem.quasienergies
+    integral_terms = integral_factors(eigensystem, time)
+    for diff_index, diff in enumerate(range(1 - n_zones, n_zones)):
+        for i in range(dimension):
+            conjugate_rotate_into(rolled_k_eigenbra, k_eigenkets[i], diff)
+            for j in range(dimension):
+                for parameter in range(n_parameters):
+                    expectation = rolled_k_eigenbra.ravel()\
+                                  @ eigensystem.k_derivatives[parameter]\
+                                  @ k_eigenkets[j].ravel()
+                    factors[diff_index, i, j, parameter] =\
+                        integral_terms[diff_index, i, j] * expectation
+    return factors
+
+@numba.jit(nopython=True)
+def du_dcontrols(eigensystem, time):
+    """
+    Calculate the derivatives of time-evolution operator with respect to the
+    control parameters of the Hamiltonian at a certain time, using a
+    pre-computed eigensystem.  This is only possible if the eigensystem was
+    created using the Hamiltonian derivatives as well.
+    """
+    n_parameters = eigensystem.k_derivatives.shape[0]
+    n_zones, dimension = eigensystem.k_eigenvectors.shape[1:3]
+    out = np.zeros((n_parameters, dimension, dimension), dtype=np.complex128)
+    if n_parameters == 0:
+        return out
+    factors = combined_factors(eigensystem, time)
+    current_kets = current_floquet_kets(eigensystem, time)
+    k_eigenbras = np.conj(eigensystem.k_eigenvectors)
+    # Keep an extra dimension so we can broadcast the multiplication of the
+    # per-control-parameter factors with the outer product.  This probably just
+    # gets optimised into another loop internally, but makes the code here a
+    # little tidier (one fewer level of indentation!).
+    projector = np.empty((1, dimension, dimension), dtype=np.complex128)
+    for i in range(dimension):
+        for j in range(dimension):
+            for zone_i in range(n_zones - 1, -1, -1):
+                np.outer(current_kets[i], k_eigenbras[j, zone_i], out=projector)
+                for diff_i in range(zone_i, zone_i + n_zones):
+                    factor = factors[diff_i, i, j].reshape(n_parameters, 1, 1)
+                    out += factor * projector
+    return out
 
 def get_u(hf, params):
     """Calculate the time evolution operator U, given a Fourier transformed
@@ -57,16 +309,6 @@ def assemble_k(hf, p):
 
 @numba.jit(nopython=True)
 def numba_assemble_k(hf, dim, k_dim, nz, nc, omega):
-    """Assemble K by placing each component of Hf in turn, which for a fixed
-    Fourier index lie on diagonals, with 0 on the
-    main diagonal, positive numbers on the right and negative on the left
-
-    The first row is therefore essentially
-        Hf(0) Hf(-1) ... Hf(-hf_max) 0 0 0 ...
-    The last row is then
-        ... 0 0 0 Hf(+hf_max) ... Hf(0)
-    Note that the main diagonal acquires a factor of
-        omega * identity * row / column."""
     hf_max = (nc - 1) // 2
     k = np.zeros((k_dim, k_dim), dtype=np.complex128)
     for n in range(-hf_max, hf_max + 1):
@@ -278,7 +520,7 @@ def calculate_factors(dk, nz, nz_max, dim, np_, vals, vecs, vecsstar, omega, t):
                 v1 = np.roll(vecsstar[i1], dn, axis=0) # not supported by numba!
                 for c in range(np_):
                     factors[c, idn, i1, i2] =\
-                        integral_factors(vals[i1], vals[i2], dn, omega, t)\
+                        integral_factor(vals[i1], vals[i2], dn, omega, t)\
                         * expectation_value(dk[c], v1, vecs[i2])
     return factors
 
@@ -298,7 +540,7 @@ def assemble_du(nz, nz_max, dim, np_, alphas, psi, vecsstar):
     return du
 
 @numba.jit(nopython=True)
-def integral_factors(e1, e2, dn, omega, t):
+def integral_factor(e1, e2, dn, omega, t):
     if e1 == e2 and dn == 0:
         return -1j * t * np.exp(-1j * t * e1)
     else:
