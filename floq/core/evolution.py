@@ -270,9 +270,9 @@ def calculate_du(dk, psi, vals, vecs, p):
 def calculate_factors(dk, nz, nz_max, dim, np_, vals, vecs, vecsstar, omega, t):
     # Factors in the sum for dU that only depend on dn=n1-n2, and therefore
     # can be computed more efficiently outside the "full" loop
-    factors = np.empty([np_, 2*nz+1, dim, dim], dtype=np.complex128)
+    factors = np.empty([np_, 2*nz - 1, dim, dim], dtype=np.complex128)
     for dn in range(-2 * nz_max, 2 * nz_max + 1):
-        idn = linalg.n_to_i(dn, 2 * nz)
+        idn = linalg.n_to_i(dn, 2*nz - 1)
         for i1 in range(dim):
             for i2 in range(dim):
                 v1 = np.roll(vecsstar[i1], dn, axis=0) # not supported by numba!
