@@ -126,6 +126,12 @@ class TestFindDuplicates(CustomAssertions):
         res = tuple(ev.find_duplicates(a))
         self.assertEqual(res, ())
 
+    def test_multiple_duplicates(self):
+        a = np.array([1., 1., 2., 2., 3., 4., 4.])
+        res = tuple(ev.find_duplicates(a))
+        self.assertEqual(len(res), 3)
+        self.assertArrayEqual([[0, 1], [2, 3], [5, 6]], res)
+
 class TestCalculatePhi(CustomAssertions):
     def test_sum(self):
         a = np.array([1.53, 2.45])
