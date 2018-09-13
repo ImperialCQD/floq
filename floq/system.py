@@ -1,7 +1,7 @@
 import numpy as np
 import abc
 import logging
-from . import core
+from . import evolution
 
 def _make_callable(maybe_callable):
     return maybe_callable if hasattr(maybe_callable, '__call__')\
@@ -145,9 +145,8 @@ class System:
                           + " Hamiltonian.")
             self.n_zones = n_components
         self.__eigensystem =\
-            core.evolution.eigensystem(hamiltonian, dhamiltonian, self.n_zones,
-                                       self.frequency, self.decimals,
-                                       self.sparse)
+            evolution.eigensystem(hamiltonian, dhamiltonian, self.n_zones,
+                                  self.frequency, self.decimals, self.sparse)
         self.__args = tuple(args)
         self.__kwargs = kwargs.copy()
 
@@ -156,7 +155,7 @@ class System:
         Calculate the time evolution operator of the stored Hamiltonian.
         """
         self.__update_if_required(t, args, kwargs)
-        return core.evolution.u(self.__eigensystem, t)
+        return evolution.u(self.__eigensystem, t)
 
     def du_dt(self, t: float, *args, **kwargs):
         """
@@ -164,7 +163,7 @@ class System:
         time.
         """
         self.__update_if_required(t, args, kwargs)
-        return core.evolution.du_dt(self.__eigensystem, t)
+        return evolution.du_dt(self.__eigensystem, t)
 
     def du_dcontrols(self, t: float, *args, **kwargs):
         """
@@ -172,7 +171,7 @@ class System:
         each of the control parameters in turn.
         """
         self.__update_if_required(t, args, kwargs)
-        return core.evolution.du_dcontrols(self.__eigensystem, t)
+        return evolution.du_dcontrols(self.__eigensystem, t)
 
     def h_effective(self, t: float, *args, **kwargs):
         u = self.u(t, *args, **kwargs)

@@ -3,7 +3,7 @@ import numpy as np
 import scipy.sparse.linalg
 import collections
 import logging
-from .. import linalg
+from . import linalg
 
 _log = logging.getLogger(__name__)
 

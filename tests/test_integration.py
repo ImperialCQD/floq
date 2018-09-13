@@ -23,9 +23,9 @@ class TestRabiUfromEigensystem(CustomAssertions):
         dim = 2
         omega = 5.0
         t = 20.5
-        es = floq.core.evolution.eigensystem(hf, None, nz, omega, 8, True)
+        es = floq.evolution.eigensystem(hf, None, nz, omega, 8, True)
         self.u = rabi.u(g, e1, e2, omega, t)
-        self.ucal = floq.core.evolution.u(es, t)
+        self.ucal = floq.evolution.u(es, t)
         self.um = np.matrix(self.ucal)
 
     def test_gives_unitary(self):
@@ -48,10 +48,10 @@ class TestRabidUfromEigensystem(CustomAssertions):
         dim = 2
         omega = 5.0
         t = 1.5
-        es = floq.core.evolution.eigensystem(hf, dhf, nz, omega, 8, True)
+        es = floq.evolution.eigensystem(hf, dhf, nz, omega, 8, True)
         self.du = np.array([[-0.43745 + 0.180865j, 0.092544 - 0.0993391j],
                             [-0.0611011 - 0.121241j, -0.36949 - 0.295891j]])
-        self.ducal = floq.core.evolution.du_dcontrols(es, t)
+        self.ducal = floq.evolution.du_dcontrols(es, t)
 
     def test_is_correct_du(self):
         self.assertArrayEqual(self.ducal, self.du)
@@ -88,10 +88,10 @@ class TestSpinUfromEigensystem(CustomAssertions):
         dim = 2
         omega = 1.3
         t = 0.6
-        es = floq.core.evolution.eigensystem(hf, None, nz, omega)
+        es = floq.evolution.eigensystem(hf, None, nz, omega)
         self.u = np.array([[-0.150824 + 0.220144j, -0.132296 - 0.954613j],
                            [0.132296 - 0.954613j, -0.150824 - 0.220144j]])
-        self.ucal = floq.core.evolution.u(es, t)
+        self.ucal = floq.evolution.u(es, t)
         self.um = np.matrix(self.ucal)
 
     def test_gives_unitary(self):

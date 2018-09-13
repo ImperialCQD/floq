@@ -2,7 +2,6 @@ from tests.assertions import CustomAssertions
 import numpy as np
 import tests.rabi as rabi
 import floq
-import floq.core.evolution as ev
 
 def generate_fake_spectrum(unique_vals, dim, omega, nz):
     vals = np.array([])
@@ -33,7 +32,7 @@ class TestAssembleK(CustomAssertions):
         self.hf = np.array([a, b, c])
 
     def test_build(self):
-        builtk = ev.assemble_k(self.hf, self.n_zones, self.frequency)
+        builtk = floq.evolution.assemble_k(self.hf, self.n_zones, self.frequency)
         self.assertArrayEqual(builtk, self.goalk)
 
 class TestAssembledK(CustomAssertions):
@@ -66,7 +65,7 @@ class TestAssembledK(CustomAssertions):
         self.dhf = np.array([[a, b, c], [b, b, a]])
 
     def test_build(self):
-        builtdk = ev.assemble_dk(self.dhf, self.n_zones)
+        builtdk = floq.evolution.assemble_dk(self.dhf, self.n_zones)
         self.assertArrayEqual(builtdk, self.goaldk)
 
 class TestFindEigensystem(CustomAssertions):
@@ -101,7 +100,7 @@ class TestFindEigensystem(CustomAssertions):
 
         omega = 2.1
         dim = 2
-        self.vals, self.vecs = ev.diagonalise(k, dim, omega, 3)
+        self.vals, self.vecs = floq.evolution.diagonalise(k, dim, omega, 3)
 
     def test_finds_vals(self):
         self.assertArrayEqual(self.vals, self.target_vals)
@@ -115,17 +114,17 @@ class TestFindEigensystem(CustomAssertions):
 class TestFindDuplicates(CustomAssertions):
     def test_duplicates(self):
         a = np.round(np.array([1, 2.001, 2.003, 1.999, 3]), decimals=2)
-        res = tuple(ev.find_duplicates(a))
+        res = tuple(floq.evolution.find_duplicates(a))
         self.assertEqual(len(res), 1)
         self.assertArrayEqual([1, 2, 3], res[0])
 
     def test_empty_if_no_dup(self):
         a = np.round(np.array([1, 2.001, 4.003, 8.999, 10]), decimals=2)
-        res = tuple(ev.find_duplicates(a))
+        res = tuple(floq.evolution.find_duplicates(a))
         self.assertEqual(res, ())
 
     def test_multiple_duplicates(self):
         a = np.array([1., 1., 2., 2., 3., 4., 4.])
-        res = tuple(ev.find_duplicates(a))
+        res = tuple(floq.evolution.find_duplicates(a))
         self.assertEqual(len(res), 3)
         self.assertArrayEqual([[0, 1], [2, 3], [5, 6]], res)

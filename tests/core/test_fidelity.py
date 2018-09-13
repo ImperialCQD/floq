@@ -1,6 +1,6 @@
 from tests.assertions import CustomAssertions
 import numpy as np
-import floq.core.fidelities as f
+import floq.fidelity as f
 
 u1 = np.array([[-0.1756 + 0.499j, -0.673 + 0.3477j, 0.0341 + 0.381j],
                [0.4613 + 0.3206j, 0.176 - 0.5432j, 0.0996 + 0.5903j],
