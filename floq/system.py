@@ -33,7 +33,7 @@ class System:
     The base methods are `u()`, `du_dcontrols()` and `du_dt()`.  The convenience
     function `h_effective()` is also provided.
     """
-    def __init__(self, hamiltonian, dhamiltonian, n_zones=1, frequency=1.0,
+    def __init__(self, hamiltonian, dhamiltonian=None, n_zones=1, frequency=1.0,
                        sparse=True, decimals=8, cache=True):
         """
         Arguments --
