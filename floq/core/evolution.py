@@ -16,54 +16,67 @@ Eigensystem = collections.namedtuple('Eigensystem', (
                                          'k_derivatives',
                                     ))
 
-def eigensystem(parameters, hamiltonian, dhamiltonian=None):
+def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
+                sparse=True):
     """
     Calculate the time-invariant eigensystem of the Floquet system.  This needs
     to be recalculated whenever the Hamiltonian (or its derivatives) change, but
     not if the time changes.  The result of this can be passed to the other
     calculation routines.
 
-    If the Hamiltonian's derivative is not supplied, then the derivatives of the
-    `K` matrix won't be build, which saves time but prevents the usage of the
-    `du_dcontrols()` function.
+    If the Hamiltonian's derivative is given as `None`, then the derivatives of
+    the `K` matrix won't be build, which saves time but prevents the usage of
+    the `du_dcontrols()` function.
 
     Arguments --
-    parameters: FixedSystemParameters --
-        This will change in the future, because the new code mostly just infers
-        all the parameters that are stored in it, and instantiating one of those
-        classes requires a time, which the new code does not need.
-
     hamiltonian: 3D np.array of complex --
         This must be the matrix of a Hamiltonian, split into Fourier components
         in the same manner used in the return values of
         `floq.System.hamiltonian()`.
 
-    dhamiltonian: 4D np.array of complex --
+    dhamiltonian: 4D np.array of complex | None --
         Optionally, the matrix form of the derivatives of a Hamiltonian, as in
         the output of `floq.System.dhamiltonian()`.  If not supplied, then the
         resulting `Eigensystem` cannot be used with the `du_dcontrols()`
         function.
+
+    n_zones: odd int --
+        The number of Brillouin zones to use when creating the Floquet matrix.
+
+    frequency: float --
+        The frequency with which the Hamiltonian is periodic.
+
+    decimals: int --
+        The number of decimal places of precision to use when comparing floats
+        for equality.
+
+    sparse: bool -- Whether to use sparse matrix algebra.
 
     Returns:
     Eigensystem --
         A collection of parameters that are not time-dependent, which can be
         passed to the time-specific functions.
     """
-    n_zones = parameters.nz
-    dimension = hamiltonian.shape[1]
-    k = assemble_k(hamiltonian, parameters)
-    if parameters.sparse:
+    n_components, dimension = hamiltonian.shape[0:2]
+    k = numba_assemble_k(hamiltonian, dimension, dimension * n_zones, n_zones,
+                         n_components, frequency)
+    if sparse:
         k = scipy.sparse.csc_matrix(k)
-    quasienergies, k_eigenvectors = diagonalise(k, dimension, parameters.omega,
-                                                parameters.decimals)
+    quasienergies, k_eigenvectors = diagonalise(k, dimension, frequency,
+                                                decimals)
     # Sum the eigenvectors along the Fourier-mode axis at `time = 0` to contract
     # the abstract Hilbert space back to the original one.
     initial_floquet_bras = np.conj(np.sum(k_eigenvectors, axis=1))
     fourier_modes = np.arange((1-n_zones)//2, 1 + (n_zones//2))
-    abstract_ket_coefficients = 1j * parameters.omega * fourier_modes
-    k_derivatives = None if dhamiltonian is None\
-                    else assemble_dk(dhamiltonian, parameters)
-    return Eigensystem(parameters.omega, quasienergies, k_eigenvectors,
+    abstract_ket_coefficients = 1j * frequency * fourier_modes
+    if dhamiltonian is None:
+        k_derivatives = None
+    else:
+        n_parameters = dhamiltonian.shape[0]
+        k_derivatives = numba_assemble_dk(dhamiltonian, n_parameters, dimension,
+                                          dimension * n_zones, n_zones,
+                                          n_components)
+    return Eigensystem(frequency, quasienergies, k_eigenvectors,
                        initial_floquet_bras, abstract_ket_coefficients,
                        k_derivatives)
 
