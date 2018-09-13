@@ -12,7 +12,7 @@ import importlib.util
 
 # Rabi problem
 
-class TestRabiUfromFixedSystem(CustomAssertions):
+class TestRabiUfromEigensystem(CustomAssertions):
     def setUp(self):
         g = 0.5
         e1 = 1.2
@@ -23,11 +23,9 @@ class TestRabiUfromFixedSystem(CustomAssertions):
         dim = 2
         omega = 5.0
         t = 20.5
-        p = floq.core.fixed_system.FixedSystemParameters(dim=dim, nz=nz,
-                                                         omega=omega, t=t, nc=3,
-                                                         np=1)
+        es = floq.core.evolution.eigensystem(hf, None, nz, omega, 8, True)
         self.u = rabi.u(g, e1, e2, omega, t)
-        self.ucal = floq.core.evolution.get_u(hf, p)
+        self.ucal = floq.core.evolution.u(es, t)
         self.um = np.matrix(self.ucal)
 
     def test_gives_unitary(self):
@@ -39,7 +37,7 @@ class TestRabiUfromFixedSystem(CustomAssertions):
         self.assertArrayEqual(self.u, self.ucal, 8)
 
 
-class TestRabidUfromFixedSystem(CustomAssertions):
+class TestRabidUfromEigensystem(CustomAssertions):
     def setUp(self):
         g = 0.5
         e1 = 1.2
@@ -50,37 +48,10 @@ class TestRabidUfromFixedSystem(CustomAssertions):
         dim = 2
         omega = 5.0
         t = 1.5
-        p = floq.core.fixed_system.FixedSystemParameters(dim, nz, nc=3,
-                                                         omega=omega, t=t, np=1)
-        k = floq.core.evolution.assemble_k(hf, p)
-        vals, vecs = floq.core.evolution.find_eigensystem(k, p)
-        psi = floq.core.evolution.calculate_psi(vecs, p)
+        es = floq.core.evolution.eigensystem(hf, dhf, nz, omega, 8, True)
         self.du = np.array([[-0.43745 + 0.180865j, 0.092544 - 0.0993391j],
                             [-0.0611011 - 0.121241j, -0.36949 - 0.295891j]])
-        dk = floq.core.evolution.assemble_dk(dhf, p)
-        self.ducal = floq.core.evolution.calculate_du(dk, psi, vals, vecs, p)
-
-    def test_is_correct_du(self):
-        self.assertArrayEqual(self.ducal, self.du)
-
-class TestRabiUandDUfromFixedSystem(CustomAssertions):
-    def setUp(self):
-        g = 0.5
-        e1 = 1.2
-        e2 = 2.8
-        hf = rabi.hf(g, e1, e2)
-        dhf = np.array([rabi.hf(1.0, 0, 0)])
-        nz = 21
-        dim = 2
-        omega = 5.0
-        t = 1.5
-        p = floq.core.fixed_system.FixedSystemParameters(dim=dim, nz=nz,
-                                                         omega=omega, t=t, nc=3,
-                                                         np=1)
-        self.du = np.array([[-0.43745 + 0.180865j, 0.092544 - 0.0993391j],
-                            [-0.0611011 - 0.121241j, -0.36949-0.295891j]])
-        self.ucal, self.ducal =\
-            floq.core.evolution.get_u_and_du_dcontrols(hf, dhf, p)
+        self.ducal = floq.core.evolution.du_dcontrols(es, t)
 
     def test_is_correct_du(self):
         self.assertArrayEqual(self.ducal, self.du)
@@ -99,12 +70,12 @@ class TestSpinUfromSpinSystem(CustomAssertions):
         target = np.array([[0.105818 - 0.324164j, -0.601164 - 0.722718j],
                            [0.601164 - 0.722718j, 0.105818 + 0.324164j]])
 
-        spin = self.spins.spin(2, 1.0, 1.1, omega=1.5)
+        spin = self.spins.spin(2, 1.0, 1.1, frequency=1.5, n_zones=65)
         controls = np.array([1.5, 1.5, 1.5, 1.5])
         result = spin.u(1.0, controls)
         self.assertArrayEqual(target, result)
 
-class TestSpinUfromFixedSystem(CustomAssertions):
+class TestSpinUfromEigensystem(CustomAssertions):
     def setUp(self):
         loader = importlib.machinery.SourceFileLoader('spins',
                                                       'examples/spins.py')
@@ -117,12 +88,10 @@ class TestSpinUfromFixedSystem(CustomAssertions):
         dim = 2
         omega = 1.3
         t = 0.6
-        p = floq.core.fixed_system.FixedSystemParameters(dim=dim, nz=nz,
-                                                         omega=omega, t=t,
-                                                         nc=11, np=10)
+        es = floq.core.evolution.eigensystem(hf, None, nz, omega)
         self.u = np.array([[-0.150824 + 0.220144j, -0.132296 - 0.954613j],
                            [0.132296 - 0.954613j, -0.150824 - 0.220144j]])
-        self.ucal = floq.core.evolution.get_u(hf, p)
+        self.ucal = floq.core.evolution.u(es, t)
         self.um = np.matrix(self.ucal)
 
     def test_gives_unitary(self):
@@ -177,14 +146,11 @@ class TestRydbergAtoms(CustomAssertions):
         r0 = np.array([0.72480473, 0.08708385, -0.87074443])
         rvec = r*r0/np.linalg.norm(r0)
 
-        a = rydberg_atoms(3, rvec, 2.0, -200.0, 1.0, n_zones=219, max_zones=221)
+        a = rydberg_atoms(3, rvec, 2.0, -200.0, 1.0, n_zones=219)
 
         ctrl = np.array([0.00840315, 0.02027272, -0.03879325, 0.01801073, 0.03176829, -0.02522575])
 
-        try:
-            a.u(1.0, ctrl)
-        except RuntimeError:
-            self.fail("nz blew up unexpectedly!")
+        self.assertTrue(floq.linalg.is_unitary(a.u(1.0, ctrl), 8))
 
 
     def test_nz_does_not_blow_up_two(self):
@@ -193,11 +159,7 @@ class TestRydbergAtoms(CustomAssertions):
         r = 5.0
         r0 = np.array([0.72480473, 0.08708385, -0.87074443])
         rvec = r*r0/np.linalg.norm(r0)
-        a = rydberg_atoms(3, rvec, 2.0, -200.0, omega=1.0, n_zones=207,
-                          max_zones=211)
+        a = rydberg_atoms(3, rvec, 2.0, -200.0, omega=1.0, n_zones=207)
         ctrl = np.array([-0.01672054, 0.01984895, -0.05714435,
                          0.02228267, -0.00592705, -0.00610819])
-        try:
-            a.u(1.0, ctrl)
-        except RuntimeError:
-            self.fail("nz blew up unexpectedly!")
+        self.assertTrue(floq.linalg.is_unitary(a.u(1.0, ctrl), 8))

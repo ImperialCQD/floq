@@ -19,11 +19,9 @@ def rydberg_atoms(n_components, rvec, mu, delta, omega, **kwargs):
         update_hf(h_base, n_components, controls, mu, factor_haf)
         return h_base
     if 'n_zones' not in kwargs:
-        kwargs['n_zones'] = 11
-    if 'max_zones' not in kwargs:
-        kwargs['max_zones'] = 1001
-    return floq.System(_hamiltonian, lambda controls: dh_base,
-                       omega=2*np.pi*omega, **kwargs)
+        kwargs['n_zones'] = 31
+    return floq.System(_hamiltonian, dh_base,
+                       frequency=2*np.pi*omega, **kwargs)
 
 def update_hf(hf, ncomp, controls, mu, factor):
     """In the supplied array hf, update the control entries, in memory.

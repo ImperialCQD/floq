@@ -24,7 +24,7 @@ def rabi(energy_split, **kwargs):
 
 if __name__ == '__main__':
     # Create the system, which then takes one control
-    system = rabi(10.0, omega=2*np.pi)
+    system = rabi(10.0, frequency=2*np.pi)
 
     # Calculate the time-evolution operator at half a period for a control of
     # 0.1.

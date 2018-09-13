@@ -3,6 +3,27 @@ import abc
 import logging
 from . import core
 
+def _make_callable(maybe_callable):
+    return maybe_callable if hasattr(maybe_callable, '__call__')\
+           else lambda *args, **kwargs: maybe_callable
+
+def _compare_args(one, two):
+    if len(one) != len(two):
+        return False
+    for a, b in zip(one, two):
+        if not np.array_equal(a, b):
+            return False
+    return True
+
+def _compare_kwargs(one, two):
+    items = set(one)
+    if items != set(two):
+        return False
+    for item in items:
+        if not np.array_equal(one[item], two[item]):
+            return False
+    return True
+
 class System:
     """
     The base `floq` system class, providing methods to calculate the
@@ -12,8 +33,8 @@ class System:
     The base methods are `u()`, `du_dcontrols()` and `du_dt()`.  The convenience
     function `h_effective()` is also provided.
     """
-    def __init__(self, hamiltonian, dhamiltonian, n_zones=1, omega=1.0,
-                       max_zones=999, sparse=True, decimals=10, cache=True):
+    def __init__(self, hamiltonian, dhamiltonian, n_zones=1, frequency=1.0,
+                       sparse=True, decimals=8, cache=True):
         """
         Arguments --
         hamiltonian:
@@ -64,16 +85,11 @@ class System:
             arguments must match those of `hamiltonian`.
 
         n_zones: odd int > 0 --
-            The initial number of 'Brillouin zones' to be considered.
+            The number of 'Brillouin zones' to be considered.
 
-        omega: float > 0 --
+        frequency: float > 0 --
             The numerical value of the principle frequency (the frequency that
             the Fourier transform is with respect to).
-
-        max_zones: odd int > 0 --
-            The maximum size that `n_zones` should be allowed to grow to.  If
-            the calculations try to raise `zones` above this value, a
-            `RuntimeError` will be raised.
 
         sparse: bool -- Whether to use sparse matrix algebra.
 
@@ -89,65 +105,36 @@ class System:
             arguments are cached, so there is no real memory impact even when
             `True`.
         """
-        self.__t = None
         self.__args = None
         self.__kwargs = None
-        self.__fixed = None
+        self.__eigensystem = None
         self.__n_components = None
         self.__n_zones= n_zones
         self.cache = cache
         self.sparse = sparse
         self.decimals = decimals
-        self.max_zones = max_zones
-        self.omega = omega
-        self.hamiltonian = self.__make_callable(hamiltonian)
-        self.dhamiltonian = self.__make_callable(dhamiltonian)
+        self.frequency = frequency
+        self.hamiltonian = _make_callable(hamiltonian)
+        self.dhamiltonian = _make_callable(dhamiltonian)
 
     @property
     def n_zones(self):
-        # If the `FixedSystem` has a value of `n_zones`, we want to use that for
-        # future calculations to avoid trying everything again.
-        if self.__fixed is None:
-            return self.__n_zones
-        return self.__fixed.parameters.nz
+        return self.__n_zones
 
     @n_zones.setter
     def n_zones(self, value):
-        # Remove the `FixedSystem` to force a recalculation on the next pass
-        # (and to remove the `nz` from there too).
-        self.__fixed = None
+        # Remove the known eigensystem to force recalculation on the next pass.
+        self.__eigensystem = None
         self.__n_zones = value
-
-    def __make_callable(self, maybe_callable):
-        return maybe_callable if hasattr(maybe_callable, '__call__')\
-               else lambda *args, **kwargs: maybe_callable
-
-    def __compare_args(self, one, two):
-        if len(one) != len(two):
-            return False
-        for a, b in zip(one, two):
-            if not np.array_equal(a, b):
-                return False
-        return True
-
-    def __compare_kwargs(self, one, two):
-        items = set(one)
-        if items != set(two):
-            return False
-        for item in items:
-            if not np.array_equal(one[item], two[item]):
-                return False
-        return True
 
     def __update_if_required(self, t: float, args, kwargs):
         """
         Update the underlying `FixedSystem` if the current version was created
         with a different set of control or time parameters.
         """
-        if self.__fixed is not None and self.cache\
-           and self.__t == t\
-           and self.__compare_args(self.__args, args)\
-           and self.__compare_kwargs(self.__kwargs, kwargs):
+        if self.__eigensystem is not None and self.cache\
+           and _compare_args(self.__args, args)\
+           and _compare_kwargs(self.__kwargs, kwargs):
             return
         hamiltonian = self.hamiltonian(*args, **kwargs)
         dhamiltonian = self.dhamiltonian(*args, **kwargs)
@@ -157,12 +144,10 @@ class System:
                           + " match the number of Fourier components in the"
                           + " Hamiltonian.")
             self.n_zones = n_components
-        self.__fixed = core.FixedSystem(hamiltonian, dhamiltonian, self.n_zones,
-                                        self.omega, t,
-                                        decimals=self.decimals,
-                                        sparse=self.sparse,
-                                        max_zones=self.max_zones)
-        self.__t = t
+        self.__eigensystem =\
+            core.evolution.eigensystem(hamiltonian, dhamiltonian, self.n_zones,
+                                       self.frequency, self.decimals,
+                                       self.sparse)
         self.__args = tuple(args)
         self.__kwargs = kwargs.copy()
 
@@ -171,7 +156,7 @@ class System:
         Calculate the time evolution operator of the stored Hamiltonian.
         """
         self.__update_if_required(t, args, kwargs)
-        return self.__fixed.u
+        return core.evolution.u(self.__eigensystem, t)
 
     def du_dt(self, t: float, *args, **kwargs):
         """
@@ -179,7 +164,7 @@ class System:
         time.
         """
         self.__update_if_required(t, args, kwargs)
-        return self.__fixed.du_dt
+        return core.evolution.du_dt(self.__eigensystem, t)
 
     def du_dcontrols(self, t: float, *args, **kwargs):
         """
@@ -187,7 +172,7 @@ class System:
         each of the control parameters in turn.
         """
         self.__update_if_required(t, args, kwargs)
-        return self.__fixed.du_dcontrols
+        return core.evolution.du_dcontrols(self.__eigensystem, t)
 
     def h_effective(self, t: float, *args, **kwargs):
         u = self.u(t, *args, **kwargs)

@@ -1,9 +1,8 @@
 from tests.assertions import CustomAssertions
 import numpy as np
 import tests.rabi as rabi
-import floq.linalg
+import floq
 import floq.core.evolution as ev
-import floq.core.fixed_system as fs
 
 def generate_fake_spectrum(unique_vals, dim, omega, nz):
     vals = np.array([])
@@ -15,8 +14,9 @@ def generate_fake_spectrum(unique_vals, dim, omega, nz):
 
 class TestAssembleK(CustomAssertions):
     def setUp(self):
-        dim = 2
-        self.p = fs.FixedSystemParameters(dim, nz=5, nc=3, omega=1)
+        self.n_zones = 5
+        self.frequency = 1
+        dim=2
         a = -1.*np.ones([dim, dim])
         b = np.zeros([dim, dim])
         c = np.ones([dim, dim])
@@ -33,13 +33,13 @@ class TestAssembleK(CustomAssertions):
         self.hf = np.array([a, b, c])
 
     def test_build(self):
-        builtk = ev.assemble_k(self.hf, self.p)
+        builtk = ev.assemble_k(self.hf, self.n_zones, self.frequency)
         self.assertArrayEqual(builtk, self.goalk)
 
 class TestAssembledK(CustomAssertions):
     def setUp(self):
-        dim = 2
-        self.p = fs.FixedSystemParameters(dim, 5, 3, np=2, omega=1)
+        self.n_zones = 5
+        dim=2
 
         a = -1.*np.ones([dim, dim])
         b = np.zeros([dim, dim])
@@ -66,7 +66,7 @@ class TestAssembledK(CustomAssertions):
         self.dhf = np.array([[a, b, c], [b, b, a]])
 
     def test_build(self):
-        builtdk = ev.assemble_dk(self.dhf, self.p)
+        builtdk = ev.assemble_dk(self.dhf, self.n_zones)
         self.assertArrayEqual(builtdk, self.goaldk)
 
 class TestFindEigensystem(CustomAssertions):
@@ -100,10 +100,8 @@ class TestFindEigensystem(CustomAssertions):
         self.target_vecs = np.array([e1, e2])
 
         omega = 2.1
-        nz = 3
         dim = 2
-        p = fs.FixedSystemParameters(dim, nz, omega=omega, decimals=3, sparse=False)
-        self.vals, self.vecs = ev.find_eigensystem(k, p)
+        self.vals, self.vecs = ev.diagonalise(k, dim, omega, 3)
 
     def test_finds_vals(self):
         self.assertArrayEqual(self.vals, self.target_vals)
@@ -131,91 +129,3 @@ class TestFindDuplicates(CustomAssertions):
         res = tuple(ev.find_duplicates(a))
         self.assertEqual(len(res), 3)
         self.assertArrayEqual([[0, 1], [2, 3], [5, 6]], res)
-
-class TestCalculatePhi(CustomAssertions):
-    def test_sum(self):
-        a = np.array([1.53, 2.45])
-        b = np.array([7.161, 1.656])
-        c = np.array([2.3663, 8.112])
-        e1 = np.array([a, a, c])
-        e1_sum = a+a+c
-        e2 = np.array([c, a, b])
-        e2_sum = c+a+b
-        target = np.array([e1_sum, e2_sum])
-        calculated_sum = ev.calculate_phi(np.array([e1, e2]))
-        self.assertArrayEqual(calculated_sum, target)
-
-class TestCalculatePsi(CustomAssertions):
-    def test_sum(self):
-        omega = 2.34
-        t = 1.22
-        p = fs.FixedSystemParameters(2, 3, omega=omega, t=t)
-        a = np.array([1.53, 2.45], dtype='complex128')
-        b = np.array([7.161, 1.656], dtype='complex128')
-        c = np.array([2.3663, 8.112], dtype='complex128')
-        e1 = np.array([a, a, c])
-        e1_sum = np.exp(-1j*omega*t)*a+a+np.exp(1j*omega*t)*c
-        e2 = np.array([c, a, b])
-        e2_sum = np.exp(-1j*omega*t)*c+a+np.exp(1j*omega*t)*b
-
-        target = np.array([e1_sum, e2_sum])
-        vecs = np.array([e1, e2])
-
-        calculated_sum = ev.calculate_psi(vecs, p)
-
-        self.assertArrayEqual(calculated_sum, target)
-
-
-class TestCalculateU(CustomAssertions):
-    def test_u(self):
-        omega = 3.56
-        t = 8.123
-        dim = 2
-        nz = 3
-        p = fs.FixedSystemParameters(dim, nz, omega=omega, t=t)
-
-        energies = [0.23, 0.42]
-
-        e1 = np.array([1.563 + 1.893j, 1.83 + 1.142j, 0.552 + 0.997j,
-                       0.766 + 1.162j, 1.756 + 0.372j, 0.689 + 0.902j])
-        e2 = np.array([1.328 + 1.94j, 1.866 + 0.055j, 1.133 + 0.162j,
-                       1.869 + 1.342j, 1.926 + 1.587j, 1.735 + 0.942j])
-        vecs = np.array([e1, e2])
-        vecs = np.array([np.split(eva, nz) for eva in vecs])
-
-        phi = ev.calculate_phi(vecs)
-        psi = ev.calculate_psi(vecs, p)
-
-        target = np.array([[29.992 + 14.079j, 29.125 + 18.169j],
-                           [5.117 - 1.363j, 5.992 - 2.462j]]).round(3)
-        u = ev.calculate_u(phi, psi, energies, p).round(3)
-
-        self.assertArrayEqual(u, target)
-
-
-class TestCalculateUdot(CustomAssertions):
-    def test_udot(self):
-        omega = 2.56
-        t = 1.23
-        dim = 2
-        nz = 3
-        p = fs.FixedSystemParameters(dim, nz, omega=omega, t=t)
-
-        energies = [0.23, 0.42]
-
-        e1 = np.array([1.563 + 1.893j, 1.83 + 1.142j, 0.552 + 0.997j,
-                       0.766 + 1.162j, 1.756 + 0.372j, 0.689 + 0.902j])
-        e2 = np.array([1.328 + 1.94j, 1.866 + 0.055j, 1.133 + 0.162j,
-                       1.869 + 1.342j, 1.926 + 1.587j, 1.735 + 0.942j])
-        vecs = np.array([e1, e2])
-        vecs = np.array([np.split(eva, nz) for eva in vecs])
-
-        phi = ev.calculate_phi(vecs)
-        psi = ev.calculate_psi(vecs, p)
-        psidot = ev.calculate_psidot(vecs, p)
-
-        target = np.array([[-18.3738 + 28.8951j, -19.4244 + 25.5303j], [22.7487 + 1.48245j, 25.7424 + 2.79668j]])
-        target = target.round(3)
-        u = ev.calculate_udot(phi, psi, psidot, energies, p).round(3)
-
-        self.assertArrayEqual(u, target)

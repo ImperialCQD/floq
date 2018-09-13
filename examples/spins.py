@@ -40,9 +40,9 @@ def dhamiltonian(ncomp):
                                          [0.25, 0.0]])
     return dhf
 
-def spin(n_components, amplitude, frequency, **kwargs):
+def spin(n_components, amplitude, split, **kwargs):
     def _hamiltonian(controls):
-        return hamiltonian(n_components, frequency, amplitude * controls)
+        return hamiltonian(n_components, split, amplitude * controls)
     _dhamiltonian = dhamiltonian(n_components)
     return floq.System(_hamiltonian, _dhamiltonian, **kwargs)
 
@@ -65,11 +65,10 @@ class SpinEnsemble(floq.system.EnsembleBase):
           - amps: vector of n amplitudes."""
         self.n_systems = n_systems
         self.n_components = n_components
-        self.omega = omega
+        self.frequency = omega
         self.frequencies = frequencies
         self.amplitudes = amplitudes
-        self.nz = np.full((self.n_systems,), 3, dtype=np.int32)
-        self.__systems = [spin(n_components, a, f, omega=omega)\
+        self.__systems = [spin(n_components, a, f, frequency=omega, n_zones=31)\
                           for a, f in zip(amplitudes, frequencies)]
 
     @property
@@ -103,7 +102,7 @@ class RandomisedSpinEnsemble(SpinEnsemble):
 
 if __name__ == '__main__':
     n_components = 3
-    spin_system = spin(n_components, 1.0, 0.01, omega=2*np.pi)
+    spin_system = spin(n_components, 1.0, 0.01, frequency=2*np.pi)
     control = np.random.rand(2 * n_components)
     print(spin_system.u(0.5, control))
     print("\n")
