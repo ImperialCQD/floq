@@ -116,14 +116,14 @@ class TestFindEigensystem(CustomAssertions):
 
 class TestFindDuplicates(CustomAssertions):
     def test_duplicates(self):
-        a = np.array([1, 2.001, 2.003, 1.999, 3])
-        res = tuple(ev.find_duplicates(a, 2))
+        a = np.round(np.array([1, 2.001, 2.003, 1.999, 3]), decimals=2)
+        res = tuple(ev.find_duplicates(a))
         self.assertEqual(len(res), 1)
         self.assertArrayEqual([1, 2, 3], res[0])
 
     def test_empty_if_no_dup(self):
-        a = np.array([1, 2.001, 4.003, 8.999, 10])
-        res = tuple(ev.find_duplicates(a, 2))
+        a = np.round(np.array([1, 2.001, 4.003, 8.999, 10]), decimals=2)
+        res = tuple(ev.find_duplicates(a))
         self.assertEqual(res, ())
 
 class TestCalculatePhi(CustomAssertions):

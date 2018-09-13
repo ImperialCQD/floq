@@ -2,7 +2,10 @@ import numba
 import numpy as np
 import scipy.sparse.linalg
 import collections
+import logging
 from .. import linalg
+
+_log = logging.getLogger(__name__)
 
 Eigensystem = collections.namedtuple('Eigensystem', (
                                          'frequency',
@@ -47,8 +50,12 @@ def eigensystem(parameters, hamiltonian, dhamiltonian=None):
         passed to the time-specific functions.
     """
     n_zones = parameters.nz
+    dimension = hamiltonian.shape[1]
     k = assemble_k(hamiltonian, parameters)
-    quasienergies, k_eigenvectors = find_eigensystem(k, parameters)
+    if parameters.sparse:
+        k = scipy.sparse.csc_matrix(k)
+    quasienergies, k_eigenvectors = diagonalise(k, dimension, parameters.omega,
+                                                parameters.decimals)
     # Sum the eigenvectors along the Fourier-mode axis at `time = 0` to contract
     # the abstract Hilbert space back to the original one.
     initial_floquet_bras = np.conj(np.sum(k_eigenvectors, axis=1))
@@ -340,6 +347,133 @@ def numba_assemble_dk(dhf, npm, dim, k_dim, nz, nc):
         dk[c, :, :] = numba_assemble_k(dhf[c], dim, k_dim, nz, nc, 0.0)
     return dk
 
+def first_brillouin_zone(eigenvalues, eigenvectors, n_values, edge):
+    """
+    Return the `n_values` eigenvalues (and corresponding eigenvectors) which
+    fall within the first "Brillioun zone" whos edge is `edge`.  This function
+    takes care to select values from only one edge of the zone, and raises a
+    `RuntimeError` if it cannot safely do so.
+
+    The inputs `eigenvalues` and `edge` must be rounded to the desired
+    precision for this function.
+
+    Arguments:
+    eigenvalues: 1D np.array of float --
+        The eigenvalues to choose from.  This should be rounded to the desired
+        precision (because the floating-point values will be compared directly
+        to the edge value).
+
+    eigenvectors: 2D np.array of complex --
+        The eigenvectors corresponding to the eigenvalues.  The first index runs
+        over the number of vectors, so `eigenvalues[i]` is the eigenvalue
+        corresponding to the eigenvector `eigenvectors[i]`.  Note: this is the
+        transpose of the return value of `np.linalg.eig` and family.
+
+    n_values: int -- The number of eigenvalues to find.
+
+    edge: float --
+        The edge of the first Brillioun zone.  This should be rounded to the
+        desired precision.
+
+    Returns:
+    eigenvalues: 1D np.array of float -- The selected eigenvalues (sorted).
+    eigenvectors: 2D np.array of complex --
+        The eigenvectors corresponding to the selected eigenvalues.  The first
+        index corresponds to the index of the `eigenvalues` output.
+    """
+    order = eigenvalues.argsort()
+    eigenvalues = eigenvalues[order]
+    eigenvectors = eigenvectors[order]
+    lower = np.searchsorted(eigenvalues, -edge, side='left')
+    upper = np.searchsorted(eigenvalues, edge, side='right')
+    n_lower_edge = n_upper_edge = 0
+    while eigenvalues[lower + n_lower_edge] == -edge:
+        n_lower_edge += 1
+    # Additional `-1` because `searchsorted(side='right')` gives us the index
+    # after the found element.
+    while eigenvalues[upper - n_upper_edge - 1] == edge:
+        n_upper_edge += 1
+    n_not_on_edge = (upper - n_upper_edge) - (lower + n_lower_edge)
+    log_message = " ".join([
+        f"Needed {n_values} eigenvalues in the first zone.",
+        f"Found {n_lower_edge}, {n_not_on_edge}, {n_upper_edge} on the",
+        "lower edge, centre zone, upper edge respectively.",
+    ])
+    _log.debug(log_message)
+    if n_not_on_edge == n_values:
+        lower, upper = lower + n_lower_edge, upper - n_upper_edge
+    elif n_not_on_edge + n_lower_edge == n_values:
+        lower, upper = lower, upper - n_upper_edge
+    elif n_not_on_edge + n_upper_edge == n_values:
+        lower, upper = lower + n_lower_edge, upper
+    else:
+        exception_message = " ".join([
+            "Could not resolve the first Brillouin zone safely.",
+            "You could try increasing the tolerance (decreasing the 'decimals'",
+            "field), or adding a small constant term to your Hamiltonian.",
+        ])
+        raise RuntimeError(exception_message)
+    return eigenvalues[lower:upper], eigenvectors[lower:upper]
+
+def diagonalise(k, h_dimension, frequency, decimals):
+    """
+    Find the eigenvalues and eigenvectors of the Floquet matrix `k`
+    corresponding to the first "Brillioun zone".  The eigenvectors corresponding
+    to degenerate eigenvalues are orthogonalised, where degeneracy and
+    orthoganlisation are done to a precision defined by `decimals`.
+
+    Arguments --
+    k: 2D np.array of complex | scipy.sparse.spmatrix --
+        The full matrix form of the Floquet matrix.  This can be given as either
+        a dense `numpy` array, or any form of `scipy.sparse` array.  In the
+        latter case, the eigenvalues and vectors are found iteratively with a
+        shift-invert method, which can cause issues when eigenvalues fall
+        exactly on zero, or exactly on the border.  The former case can
+        typically be solved by adding a term proportional to the identity onto
+        the Hamiltonian, and the latter should largely be taken care of by the
+        code.
+
+    h_dimension: int -- The dimension of the Hamiltonian.
+
+    frequency: float --
+        The angular frequency with which the Hamiltonian is periodic.
+
+    decimals: int --
+        The number of decimal places to use as a precision for orthogonalisation
+        and comparison of degenerate eigenvalues.
+
+    Returns --
+    eigenvalues: 1D np.array of float --
+        The eigenvalues of the `k` matrix which fall within the first Brillouin
+        zone.
+    eigenvectors: np.array(dtype=np.complex128,
+                           shape=(h_dimension, n_zones, h_dimension)) --
+        The eigenvectors corresponding to the chosen eigenvalues.  The first
+        index matches the index of `eigenvalues`, then each eigenvector is
+        shaped into the Brillouin zone blocks, so the second index runs along
+        Floquet kets corresponding to a certain (potentially degenerate)
+        quasi-energy.
+    """
+    if isinstance(k, scipy.sparse.spmatrix):
+        # We get twice as many eigenvalues as necessary so we can guarantee we
+        # have a full set in the first Brillouin zone, even if all of them fall
+        # on the very edge of the zone.  If this were to happen and we were only
+        # taking the absolutely necessary number of eigenvalues, we would
+        # sometimes duplicate an eigenvector without intending to.
+        eigenvalues, eigenvectors =\
+            scipy.sparse.linalg.eigs(k, k=2*h_dimension, sigma=0.0)
+    else:
+        eigenvalues, eigenvectors = np.linalg.eig(k)
+    eigenvalues = np.round(np.real(eigenvalues), decimals=decimals)
+    eigenvectors = np.transpose(eigenvectors)
+    edge = np.round(0.5 * frequency, decimals=decimals)
+    eigenvalues, eigenvectors = first_brillouin_zone(eigenvalues, eigenvectors,
+                                                     h_dimension, edge)
+    for degeneracy in find_duplicates(eigenvalues):
+        eigenvectors[degeneracy] = linalg.gram_schmidt(eigenvectors[degeneracy])
+    n_zones = k.shape[0] // h_dimension
+    return eigenvalues, eigenvectors.reshape(h_dimension, n_zones, h_dimension)
+
 def find_eigensystem(k, p):
     # Find unique eigenvalues and -vectors,
     # return them as segments (each of which is a ket)
@@ -353,9 +487,9 @@ def get_basis(k, p):
     orthogonalising degenerate subspaces."""
     vals, vecs = compute_eigensystem(k, p)
     start = find_first_above_value(vals, -0.5 * p.omega)
-    picked_vals = vals[start:start + p.dim]
+    picked_vals = np.round(vals[start:start + p.dim], decimals=p.decimals)
     picked_vecs = np.array([vecs[:, i] for i in range(start, start + p.dim)])
-    for duplicates in find_duplicates(picked_vals, p.decimals):
+    for duplicates in find_duplicates(picked_vals):
         picked_vecs[duplicates] = linalg.gram_schmidt(picked_vecs[duplicates])
     return picked_vals, picked_vecs
 
@@ -400,7 +534,7 @@ def find_first_above_value(array, value):
             return i
     return None
 
-def find_duplicates(array, decimals):
+def find_duplicates(array):
     """
     Given a sorted 1D array of values, return an iterator where each element
     corresponds to one degenerate eigenvalue, and the element is a list of
@@ -412,10 +546,9 @@ def find_duplicates(array, decimals):
         [[0, 1, 2], [4, 5]].
 
     Arguments --
-    array: 1D sorted np.array -- The array to find duplicates in.
-    decimals: float --
-        The number of decimal places to round `array` to when comparing values
-        for equality.
+    array: 1D sorted np.array --
+        The array to find duplicates in.  Should be rounded to the required
+        precision already.
 
     Returns --
     duplicate_sets: iterator of np.array of int --
@@ -423,8 +556,7 @@ def find_duplicates(array, decimals):
         Entries which are not duplicated will not be referenced in the output.
     """
     indices = np.arange(array.shape[0])
-    _, start_indices = np.unique(np.round(array, decimals=decimals),
-                                 return_index=True)
+    _, start_indices = np.unique(array, return_index=True)
     # start_indices will always contain 0 first, but np.split doesn't need it.
     return filter(lambda x: x.size > 1, np.split(indices, start_indices[1:]))
 
