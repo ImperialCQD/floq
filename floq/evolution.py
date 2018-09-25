@@ -169,9 +169,6 @@ def integral_factors(eigensystem, time):
         e(j, j'; delta mu)
     from equation (1.48) in Marcel's thesis.
     """
-    # This function is comparatively long compared to the old version because it
-    # does some questionable loop reorganisation to prevent `if` statements in
-    # deeply nested loops.
     n_zones = eigensystem.k_eigenvectors.shape[1]
     dimension = eigensystem.k_eigenvectors.shape[2]
     energies = eigensystem.quasienergies
@@ -181,35 +178,18 @@ def integral_factors(eigensystem, time):
     diff_exponentials = np.exp(1j * time * frequency * differences)
     out = np.empty((differences.shape[0], dimension, dimension),
                    dtype=np.complex128)
-    # Fill diagonal of 0 difference, then treat it specially to avoid an `if`
-    # statement in a tightly nested loop.  Can be replaced by
-    #   np.fill_diagonal(out[n_zones - 1], -1j * time * energy_phases)
-    # once numba 0.40 is out.
-    diag = -1j * time * energy_phases
-    for i in range(energies.shape[0]):
-        out[n_zones - 1, i, i] = diag[i]
-    for i in range(energies.shape[0]):
-        for j in range(i):
-            value = (energy_phases[i] - energy_phases[j])\
-                    / (energies[i] - energies[j])
-            out[n_zones - 1, i, j] = out[n_zones - 1, j, i] = value
-    # Handle all the rest of the values, making sure to avoid the zero
-    # difference case.
-    # Handle negative differences first.
-    for diff_index in range(n_zones - 1):
+    for diff_index in range(differences.shape[0]):
         separation = frequency * differences[diff_index]
         exponential = diff_exponentials[diff_index]
         for i in range(energies.shape[0]):
-            numer = energy_phases[i] - energy_phases*exponential
-            denom = energies[i] + separation - energies
-            out[diff_index, i] = numer / denom
-    for diff_index in range(n_zones, differences.shape[0]):
-        separation = frequency * differences[diff_index]
-        exponential = diff_exponentials[diff_index]
-        for i in range(energies.shape[0]):
-            numer = energy_phases[i] - energy_phases*exponential
-            denom = energies[i] + separation - energies
-            out[diff_index, i] = numer / denom
+            for j in range(energies.shape[0]):
+                prefactor = energy_phases[j] * exponential
+                denom = energies[i] - energies[j] + separation
+                if denom == 0.0:
+                    out[diff_index, i, j] = -1j * time * prefactor
+                else:
+                    numer = energy_phases[i] - prefactor
+                    out[diff_index, i, j] = numer / denom
     return out
 
 @numba.njit()
