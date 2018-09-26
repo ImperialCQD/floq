@@ -58,9 +58,8 @@ def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
         passed to the time-specific functions.
     """
     n_components, dimension = hamiltonian.shape[0:2]
-    k = assemble_k(hamiltonian, n_zones, frequency)
-    if sparse:
-        k = scipy.sparse.csc_matrix(k)
+    k = assemble_k_sparse(hamiltonian, n_zones, frequency) if sparse\
+        else assemble_k(hamiltonian, n_zones, frequency)
     quasienergies, k_eigenvectors = diagonalise(k, dimension, frequency,
                                                 decimals)
     # Sum the eigenvectors along the Fourier-mode axis at `time = 0` to contract
@@ -251,6 +250,63 @@ def du_dcontrols(eigensystem, time):
                     factor = factors[diff_i, i, j].reshape(n_parameters, 1, 1)
                     out += factor * projector
     return out
+
+@numba.njit()
+def _k_ijv_constructor(hamiltonian, n_zones, frequency):
+    """
+    Returns a tuple of
+        values, (row_indices, col_indices)
+    where all three names are 1D `numpy` arrays.  These determine the `K` matrix
+    in 'ijv' or 'triplet' format. See
+        http://www.scipy-lectures.org/scipy_sparse/coo_matrix.html
+    and other associated `scipy` pages for more information.  This triplet form
+    can be passed to the `coo`, `csc` or `csr` sparse matrix constructors,
+    resulting in an efficient creation.
+    """
+    nonzeros = [hamiltonian[i].nonzero() for i in range(hamiltonian.shape[0])]
+    rows, cols = [x[0] for x in nonzeros], [x[1] for x in nonzeros]
+    dimension = hamiltonian.shape[1]
+    mid = (len(rows) - 1) // 2
+    n_elements = dimension * n_zones # include extra space for diagonal
+    for i, row in enumerate(rows):
+        n_elements += row.size * (n_zones - abs(mid - i))
+    row_out = np.empty(n_elements, dtype=np.intp)
+    col_out = np.empty_like(row_out)
+    val_out = np.empty(n_elements, dtype=np.complex128)
+    start = 0
+    for i in range(len(rows)):
+        row, col = rows[i], cols[i]
+        val = np.array([hamiltonian[i,row[k],col[k]] for k in range(row.size)])
+        start_row, start_col = max(0, i - mid), max(0, mid - i)
+        n_blocks = n_zones - abs(mid - i)
+        for j in range(n_blocks):
+            row_out[start : start+row.size] = row + (start_row+j)*dimension
+            col_out[start : start+row.size] = col + (start_col+j)*dimension
+            val_out[start : start+row.size] = val
+            start += row.size
+    # When converting a `coo`-style matrix to `csc` or `csr`, duplicated
+    # coordinates have their values summed.  I add the diagonal `1, n*frequency`
+    # operator values here as completely separated entries in the sparse matrix,
+    # because it's easier to reason about what's happening.  I then use the
+    # documented summation property on conversion to `csc`.  See
+    # docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.coo_matrix.html
+    indices = np.arange(n_zones * dimension)
+    row_out[start:] = indices
+    col_out[start:] = indices
+    for j in range(n_zones):
+        val_out[start : start + dimension] = (j - n_zones//2) * frequency
+        start += dimension
+    return val_out, (row_out, col_out)
+
+def assemble_k_sparse(hamiltonian, n_zones, frequency):
+    """
+    Directly assemble `K` as a sparse matrix in `csc` (Compressed Sparse Column)
+    format.  The sparser `K` is, the more efficient this way of doing things is.
+    """
+    elements = _k_ijv_constructor(hamiltonian, n_zones, frequency)
+    size = n_zones * hamiltonian.shape[1]
+    # Use `csc` format for efficiency in the diagonalisation routine.
+    return scipy.sparse.csc_matrix(elements, shape=(size, size))
 
 @numba.njit()
 def assemble_k(hf, nz, omega):
