@@ -206,16 +206,20 @@ def combined_factors(eigensystem, time):
                        dtype=np.complex128)
     rolled_k_eigenbra = np.zeros((n_zones, dimension),
                                  dtype=np.complex128)
+    expectation_left = np.empty((n_parameters, n_zones * dimension),
+                                dtype=np.complex128)
     k_eigenkets = eigensystem.k_eigenvectors
     energies = eigensystem.quasienergies
     integral_terms = integral_factors(eigensystem, time)
     for diff_index, diff in enumerate(range(1 - n_zones, n_zones)):
         for i in range(dimension):
             conjugate_rotate_into(rolled_k_eigenbra, k_eigenkets[i], diff)
+            for p in range(n_parameters):
+                expectation_left[p] = rolled_k_eigenbra.ravel()\
+                                      @ eigensystem.k_derivatives[p]
             for j in range(dimension):
                 for parameter in range(n_parameters):
-                    expectation = rolled_k_eigenbra.ravel()\
-                                  @ eigensystem.k_derivatives[parameter]\
+                    expectation = expectation_left[parameter]\
                                   @ k_eigenkets[j].ravel()
                     factors[diff_index, i, j, parameter] =\
                         integral_terms[diff_index, i, j] * expectation
