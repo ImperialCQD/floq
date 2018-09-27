@@ -60,6 +60,8 @@ def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
     n_components, dimension = hamiltonian.shape[0:2]
     k = assemble_k_sparse(hamiltonian, n_zones, frequency) if sparse\
         else assemble_k(hamiltonian, n_zones, frequency)
+    k_derivatives = None if dhamiltonian is None\
+                    else assemble_dk(dhamiltonian, n_zones)
     quasienergies, k_eigenvectors = diagonalise(k, dimension, frequency,
                                                 decimals)
     # Sum the eigenvectors along the Fourier-mode axis at `time = 0` to contract
@@ -67,11 +69,6 @@ def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
     initial_floquet_bras = np.conj(np.sum(k_eigenvectors, axis=1))
     fourier_modes = np.arange((1-n_zones)//2, 1 + (n_zones//2))
     abstract_ket_coefficients = 1j * frequency * fourier_modes
-    if dhamiltonian is None:
-        k_derivatives = None
-    else:
-        n_parameters = dhamiltonian.shape[0]
-        k_derivatives = assemble_dk(dhamiltonian, n_zones)
     return Eigensystem(frequency, quasienergies, k_eigenvectors,
                        initial_floquet_bras, abstract_ket_coefficients,
                        k_derivatives)
@@ -160,6 +157,22 @@ def conjugate_rotate_into(out, input, amount):
     else:
         out[:] = np.conj(input)
 
+# I use this custom sparse column representation of a matrix for compatibility
+# with `numba`, since it can't understand `scipy.sparse` matrices.  I couple
+# this with a simple implementation of a left dot product (i.e. vector . matrix)
+# to get a speed ip on the heaviest part of `du_dcontrols()`.
+ColumnSparseMatrix = collections.namedtuple('ColumnSparseMatrix',
+                                            ('in_column', 'row', 'value'))
+@numba.njit()
+def _column_sparse_ldot(vector, matrix):
+    out = np.zeros_like(vector)
+    i = 0
+    for column, count in enumerate(matrix.in_column):
+        for _ in range(count):
+            out[column] += vector[matrix.row[i]] * matrix.value[i]
+            i += 1
+    return out
+
 @numba.njit()
 def integral_factors(eigensystem, time):
     """
@@ -199,7 +212,7 @@ def combined_factors(eigensystem, time):
         f(j, j'; delta mu)
     from equations (1.50) and (2.7) in Marcel's thesis.
     """
-    n_parameters = eigensystem.k_derivatives.shape[0]
+    n_parameters = len(eigensystem.k_derivatives)
     n_zones = eigensystem.k_eigenvectors.shape[1]
     dimension = eigensystem.k_eigenvectors.shape[2]
     factors = np.empty((2*n_zones - 1, dimension, dimension, n_parameters),
@@ -214,9 +227,10 @@ def combined_factors(eigensystem, time):
     for diff_index, diff in enumerate(range(1 - n_zones, n_zones)):
         for i in range(dimension):
             conjugate_rotate_into(rolled_k_eigenbra, k_eigenkets[i], diff)
+            bra = rolled_k_eigenbra.ravel()
             for p in range(n_parameters):
-                expectation_left[p] = rolled_k_eigenbra.ravel()\
-                                      @ eigensystem.k_derivatives[p]
+                expectation_left[p] =\
+                    _column_sparse_ldot(bra, eigensystem.k_derivatives[p])
             for j in range(dimension):
                 for parameter in range(n_parameters):
                     expectation = expectation_left[parameter]\
@@ -233,7 +247,7 @@ def du_dcontrols(eigensystem, time):
     pre-computed eigensystem.  This is only possible if the eigensystem was
     created using the Hamiltonian derivatives as well.
     """
-    n_parameters = eigensystem.k_derivatives.shape[0]
+    n_parameters = len(eigensystem.k_derivatives)
     n_zones, dimension = eigensystem.k_eigenvectors.shape[1:3]
     out = np.zeros((n_parameters, dimension, dimension), dtype=np.complex128)
     if n_parameters == 0:
@@ -335,13 +349,69 @@ def assemble_k(hf, nz, omega):
     return k
 
 @numba.njit()
-def assemble_dk(dhf, nz):
-    npm, nc, dim = dhf.shape[0:3]
-    k_dim = nz * dim
-    dk = np.empty((npm, k_dim, k_dim), dtype=np.complex128)
-    for c in range(npm):
-        dk[c, :, :] = assemble_k(dhf[c], nz, 0.0)
-    return dk
+def _dense_to_sparse(matrix):
+    """
+    Convert a dense 2D numpy array of complex into the custom
+    `ColumnSparseMatrix` format.  This is probably not the most efficient way of
+    doing things, but it's simple and easy to read.
+    """
+    in_column = np.zeros(matrix.shape[1], dtype=np.int64)
+    col, row = matrix.T.nonzero()
+    value = np.empty(col.size, dtype=np.complex128)
+    for i in range(col.size):
+        in_column[col[i]] += 1
+        value[i] = matrix[row[i], col[i]]
+    return ColumnSparseMatrix(in_column, row, value)
+
+@numba.njit()
+def _single_dk_sparse(dhamiltonian, n_zones):
+    """
+    Create a single sparse matrix for a single derivative.
+    """
+    n_modes, dimension = dhamiltonian.shape[0:2]
+    k_dimension = n_zones * dimension
+    modes = [_dense_to_sparse(dhamiltonian[i]) for i in range(n_modes)]
+    mode_mid = (n_modes - 1) // 2
+    n_elements = 0
+    for i, mode in enumerate(modes):
+        n_elements += mode.value.size * (n_zones - abs(mode_mid - i))
+    in_column = np.zeros(k_dimension, dtype=np.int64)
+    row = np.empty(n_elements, dtype=np.int64)
+    value = np.empty(n_elements, dtype=np.complex128)
+    main_ptr = 0
+    block_ptr = np.zeros(n_modes, dtype=np.int64)
+    block_mid_row = -1
+    for i in range(k_dimension):
+        zone_column = i // dimension
+        block_column = i % dimension
+        if block_column == 0:
+            block_ptr[:] = 0
+            block_mid_row += 1
+        start_mode = max(0, mode_mid - zone_column)
+        end_mode = min(n_modes, mode_mid + n_zones - zone_column)
+        for j in range(start_mode, end_mode):
+            n_to_add = modes[j].in_column[block_column]
+            in_column[i] += n_to_add
+            row_add = (block_mid_row + j - mode_mid) * dimension
+            for _ in range(n_to_add):
+                row[main_ptr] = modes[j].row[block_ptr[j]] + row_add
+                value[main_ptr] = modes[j].value[block_ptr[j]]
+                main_ptr += 1
+                block_ptr[j] += 1
+    return ColumnSparseMatrix(in_column, row, value)
+
+@numba.njit()
+def assemble_dk(dhamiltonians, n_zones):
+    """
+    Creates the `dK` matrix as a list of the custom `ColumnSparseMatrix` tuple.
+    The only operation we need with the output matrix is an inner product `<x|M`
+    so the column sparse format is very efficient.
+
+    I use this poor-man's sparse matrix beacuse `numba` doesn't know about
+    `scipy.sparse` matrices.
+    """
+    return [_single_dk_sparse(dhamiltonians[i], n_zones)
+            for i in range(dhamiltonians.shape[0])]
 
 def first_brillouin_zone(eigenvalues, eigenvectors, n_values, edge):
     """

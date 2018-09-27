@@ -35,6 +35,14 @@ class TestAssembleK(CustomAssertions):
         builtk = floq.evolution.assemble_k(self.hf, self.n_zones, self.frequency)
         self.assertArrayEqual(builtk, self.goalk)
 
+class TestDenseToSparse(CustomAssertions):
+    def test_conversion(self):
+        goal = floq.evolution.ColumnSparseMatrix(np.array([1, 2]),
+                                                 np.array([1, 0, 1]),
+                                                 np.array([2, 1, 3]))
+        built = floq.evolution._dense_to_sparse(np.arange(4).reshape(2, 2))
+        self.assertColumnSparseMatrixEqual(built, goal)
+
 class TestAssembledK(CustomAssertions):
     def setUp(self):
         self.n_zones = 5
@@ -61,12 +69,13 @@ class TestAssembledK(CustomAssertions):
                  [z, z, a, b, b],
                  [z, z, z, a, b]]))
 
-        self.goaldk = np.array([dk1, dk2])
+        self.goaldk = [floq.evolution._dense_to_sparse(x) for x in [dk1, dk2]]
         self.dhf = np.array([[a, b, c], [b, b, a]])
 
     def test_build(self):
         builtdk = floq.evolution.assemble_dk(self.dhf, self.n_zones)
-        self.assertArrayEqual(builtdk, self.goaldk)
+        for i, bdk in enumerate(builtdk):
+            self.assertColumnSparseMatrixEqual(bdk, self.goaldk[i])
 
 class TestFindEigensystem(CustomAssertions):
     def setUp(self):
