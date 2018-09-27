@@ -73,7 +73,7 @@ def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
                        initial_floquet_bras, abstract_ket_coefficients,
                        k_derivatives)
 
-@numba.njit()
+@numba.njit
 def current_floquet_kets(eigensystem, time):
     """
     Get the Floquet basis kets at a given time.  These are the
@@ -84,7 +84,7 @@ def current_floquet_kets(eigensystem, time):
     weights = weights.reshape((1, -1, 1))
     return np.sum(weights * eigensystem.k_eigenvectors, axis=1)
 
-@numba.njit()
+@numba.njit
 def d_current_floquet_kets(eigensystem, time):
     """
     Get the time derivatives of the Floquet basis kets
@@ -97,7 +97,7 @@ def d_current_floquet_kets(eigensystem, time):
     weights = weights.reshape((1, -1, 1))
     return np.sum(weights * eigensystem.k_eigenvectors, axis=1)
 
-@numba.njit()
+@numba.njit
 def u(eigensystem, time):
     """
     Calculate the time-evolution operator at a certain time, using a
@@ -115,7 +115,7 @@ def u(eigensystem, time):
                         eigensystem.initial_floquet_bras[mode])
     return out
 
-@numba.njit()
+@numba.njit
 def du_dt(eigensystem, time):
     """
     Calculate the time derivative of a time-evolution operator at a certain
@@ -141,7 +141,7 @@ def du_dt(eigensystem, time):
         out += energy_factors[mode] * tmp
     return out
 
-@numba.njit()
+@numba.njit
 def conjugate_rotate_into(out, input, amount):
     """
     Equivalent to `out = np.conj(np.roll(input, amount, axis=0))`, but `roll()`
@@ -163,7 +163,7 @@ def conjugate_rotate_into(out, input, amount):
 # to get a speed ip on the heaviest part of `du_dcontrols()`.
 ColumnSparseMatrix = collections.namedtuple('ColumnSparseMatrix',
                                             ('in_column', 'row', 'value'))
-@numba.njit()
+@numba.njit
 def _column_sparse_ldot(vector, matrix):
     out = np.zeros_like(vector)
     i = 0
@@ -173,7 +173,7 @@ def _column_sparse_ldot(vector, matrix):
             i += 1
     return out
 
-@numba.njit()
+@numba.njit
 def integral_factors(eigensystem, time):
     """
     Calculate the "integral factors" for use in the control-derivatives of the
@@ -204,7 +204,7 @@ def integral_factors(eigensystem, time):
                     out[diff_index, i, j] = numer / denom
     return out
 
-@numba.njit()
+@numba.njit
 def combined_factors(eigensystem, time):
     """
     Calculate the "combined factors" for use in the control-derivatives of the
@@ -239,7 +239,7 @@ def combined_factors(eigensystem, time):
                         integral_terms[diff_index, i, j] * expectation
     return factors
 
-@numba.njit()
+@numba.njit
 def du_dcontrols(eigensystem, time):
     """
     Calculate the derivatives of time-evolution operator with respect to the
@@ -269,7 +269,7 @@ def du_dcontrols(eigensystem, time):
                     out += factor * projector
     return out
 
-@numba.njit()
+@numba.njit
 def _k_ijv_constructor(hamiltonian, n_zones, frequency):
     """
     Returns a tuple of
@@ -326,7 +326,7 @@ def assemble_k_sparse(hamiltonian, n_zones, frequency):
     # Use `csc` format for efficiency in the diagonalisation routine.
     return scipy.sparse.csc_matrix(elements, shape=(size, size))
 
-@numba.njit()
+@numba.njit
 def assemble_k(hf, nz, omega):
     nc, dim = hf.shape[0:2]
     k_dim = dim * nz
@@ -348,7 +348,7 @@ def assemble_k(hf, nz, omega):
             col = col + 1
     return k
 
-@numba.njit()
+@numba.njit
 def _dense_to_sparse(matrix):
     """
     Convert a dense 2D numpy array of complex into the custom
@@ -363,7 +363,7 @@ def _dense_to_sparse(matrix):
         value[i] = matrix[row[i], col[i]]
     return ColumnSparseMatrix(in_column, row, value)
 
-@numba.njit()
+@numba.njit
 def _single_dk_sparse(dhamiltonian, n_zones):
     """
     Create a single sparse matrix for a single derivative.
@@ -400,7 +400,7 @@ def _single_dk_sparse(dhamiltonian, n_zones):
                 block_ptr[j] += 1
     return ColumnSparseMatrix(in_column, row, value)
 
-@numba.njit()
+@numba.njit
 def assemble_dk(dhamiltonians, n_zones):
     """
     Creates the `dK` matrix as a list of the custom `ColumnSparseMatrix` tuple.

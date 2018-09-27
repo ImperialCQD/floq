@@ -1,21 +1,21 @@
 import numba
 import numpy as np
 
-@numba.jit(nopython=True)
+@numba.njit
 def n_to_i(num, n):
     """Translate num, ranging from -(n-1)/2 through (n-1)/2 into an index i from
     0 to n-1.  If num > (n-1)/2, map it into the interval.  This is necessary to
     translate from a physical Fourier mode number to an index in an array."""
     return (num + (n - 1) // 2) % n
 
-@numba.jit(nopython=True)
+@numba.njit
 def i_to_n(i, n):
     """Translate index i, ranging from 0 to n-1 into a number from -(n-1)/2
     through (n-1)/2.  This is necessary to translate from an index to a physical
     Fourier mode number."""
     return i - (n - 1) // 2
 
-@numba.jit(nopython=True)
+@numba.njit
 def get_block(matrix, dim_block, n_block, row, col):
     start_row = row * dim_block
     start_col = col * dim_block
@@ -23,7 +23,7 @@ def get_block(matrix, dim_block, n_block, row, col):
     stop_col = start_col + dim_block
     return matrix[start_row:stop_row, start_col:stop_col]
 
-@numba.jit(nopython=True)
+@numba.njit
 def set_block(block, matrix, dim_block, n_block, row, col):
     start_row = row * dim_block
     start_col = col * dim_block
