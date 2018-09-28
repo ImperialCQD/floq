@@ -255,18 +255,14 @@ def du_dcontrols(eigensystem, time):
     factors = combined_factors(eigensystem, time)
     current_kets = current_floquet_kets(eigensystem, time)
     k_eigenbras = np.conj(eigensystem.k_eigenvectors)
-    # Keep an extra dimension so we can broadcast the multiplication of the
-    # per-control-parameter factors with the outer product.  This probably just
-    # gets optimised into another loop internally, but makes the code here a
-    # little tidier (one fewer level of indentation!).
-    projector = np.empty((1, dimension, dimension), dtype=np.complex128)
     for i in range(dimension):
         for j in range(dimension):
-            for zone_i in range(n_zones - 1, -1, -1):
-                np.outer(current_kets[i], k_eigenbras[j, zone_i], out=projector)
-                for diff_i in range(zone_i, zone_i + n_zones):
-                    factor = factors[diff_i, i, j].reshape(n_parameters, 1, 1)
-                    out += factor * projector
+            bra = np.zeros((n_parameters, dimension), dtype=np.complex128)
+            for zone_i in range(n_zones):
+                factor = np.sum(factors[zone_i : zone_i+n_zones, i, j], axis=0)
+                bra += factor.reshape(-1, 1) * k_eigenbras[j, zone_i]
+            for parameter in range(n_parameters):
+                out[parameter] += np.outer(current_kets[i], bra[parameter])
     return out
 
 @numba.njit
