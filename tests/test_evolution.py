@@ -1,5 +1,6 @@
 from unittest import TestCase
 from tests.assertions import CustomAssertions
+import scipy.sparse
 import numpy as np
 import tests.rabi as rabi
 import floq
@@ -93,9 +94,15 @@ class TestAssembleK(CustomAssertions):
                  [z, z, z, c, b+2*i]]))
         self.hf = np.array([a, b, c])
 
-    def test_build(self):
+    def test_dense(self):
         builtk = floq.evolution.assemble_k(self.hf, self.n_zones, self.frequency)
         self.assertArrayEqual(builtk, self.goalk)
+
+    def test_sparse(self):
+        builtk = floq.evolution.assemble_k_sparse(self.hf, self.n_zones,
+                                                  self.frequency)
+        self.assertTrue(scipy.sparse.issparse(builtk))
+        self.assertArrayEqual(builtk.toarray(), self.goalk)
 
 class TestDenseToSparse(CustomAssertions):
     def test_conversion(self):
