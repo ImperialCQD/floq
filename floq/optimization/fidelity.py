@@ -1,8 +1,8 @@
 """Provide templates and implementations for FidelityComputer class, which wraps
 a ParametricSystem and computes f and df for given controls."""
 import logging
-from ..fidelity import d_operator_distance, operator_distance
-from ..fidelity import transfer_distance, d_transfer_distance
+from ..linalg import d_operator_distance, operator_distance
+from ..linalg import transfer_distance, d_transfer_distance
 import numpy as np
 
 class FidelityBase(object):
