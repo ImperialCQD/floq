@@ -1,57 +1,7 @@
 from unittest import TestCase
 from tests.assertions import CustomAssertions
 import numpy as np
-import floq.linalg
-
-class TestGetBlock(TestCase):
-    def setUp(self):
-        self.dim_block = 5
-        self.n_block = 3
-
-        self.a, self.b, self.c, self.d, self.e, self.f, self.g, self.h, self.i  \
-            = [j*np.ones([self.dim_block, self.dim_block]) for j in range(9)]
-
-        matrix = np.bmat([[self.a, self.b, self.c],
-                         [self.d, self.e, self.f],
-                         [self.g, self.h, self.i]])
-        self.matrix = np.array(matrix)
-
-    def test_a(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 0, 0)
-        self.assertTrue(np.array_equal(block, self.a))
-
-    def test_b(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 0, 1)
-        self.assertTrue(np.array_equal(block, self.b))
-
-    def test_c(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 0, 2)
-        self.assertTrue(np.array_equal(block, self.c))
-
-    def test_d(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 1, 0)
-        self.assertTrue(np.array_equal(block, self.d))
-
-    def test_e(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 1, 1)
-        self.assertTrue(np.array_equal(block, self.e))
-
-    def test_f(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 1, 2)
-        self.assertTrue(np.array_equal(block, self.f))
-
-    def test_g(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 2, 0)
-        self.assertTrue(np.array_equal(block, self.g))
-
-    def test_h(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 2, 1)
-        self.assertTrue(np.array_equal(block, self.h))
-
-    def test_i(self):
-        block = floq.linalg.get_block(self.matrix, self.dim_block, self.n_block, 2, 2)
-        self.assertTrue(np.array_equal(block, self.i))
-
+import floq
 
 class TestSetBlock(TestCase):
     def setUp(self):
@@ -71,55 +21,55 @@ class TestSetBlock(TestCase):
 
     def test_set(self):
         # Try to recreate self.original with the new function
-        floq.linalg.set_block(self.a, self.copy, self.dim_block, self.n_block, 0, 0)
-        floq.linalg.set_block(self.b, self.copy, self.dim_block, self.n_block, 0, 1)
-        floq.linalg.set_block(self.c, self.copy, self.dim_block, self.n_block, 0, 2)
-        floq.linalg.set_block(self.d, self.copy, self.dim_block, self.n_block, 1, 0)
-        floq.linalg.set_block(self.e, self.copy, self.dim_block, self.n_block, 1, 1)
-        floq.linalg.set_block(self.f, self.copy, self.dim_block, self.n_block, 1, 2)
-        floq.linalg.set_block(self.g, self.copy, self.dim_block, self.n_block, 2, 0)
-        floq.linalg.set_block(self.h, self.copy, self.dim_block, self.n_block, 2, 1)
-        floq.linalg.set_block(self.i, self.copy, self.dim_block, self.n_block, 2, 2)
+        floq.evolution._set_block(self.a, self.copy, self.dim_block, self.n_block, 0, 0)
+        floq.evolution._set_block(self.b, self.copy, self.dim_block, self.n_block, 0, 1)
+        floq.evolution._set_block(self.c, self.copy, self.dim_block, self.n_block, 0, 2)
+        floq.evolution._set_block(self.d, self.copy, self.dim_block, self.n_block, 1, 0)
+        floq.evolution._set_block(self.e, self.copy, self.dim_block, self.n_block, 1, 1)
+        floq.evolution._set_block(self.f, self.copy, self.dim_block, self.n_block, 1, 2)
+        floq.evolution._set_block(self.g, self.copy, self.dim_block, self.n_block, 2, 0)
+        floq.evolution._set_block(self.h, self.copy, self.dim_block, self.n_block, 2, 1)
+        floq.evolution._set_block(self.i, self.copy, self.dim_block, self.n_block, 2, 2)
         self.assertTrue(np.array_equal(self.copy,self.original))
 
 
 class TestFourierIndexToNormalIndex(TestCase):
     def test_start(self):
-        self.assertEqual(floq.linalg.n_to_i(-40, 81), 0)
+        self.assertEqual(floq.evolution._n_to_i(-40, 81), 0)
 
     def test_end(self):
-        self.assertEqual(floq.linalg.n_to_i(40, 81), 80)
+        self.assertEqual(floq.evolution._n_to_i(40, 81), 80)
 
     def test_middle(self):
-        self.assertEqual(floq.linalg.n_to_i(0, 81), 40)
+        self.assertEqual(floq.evolution._n_to_i(0, 81), 40)
 
     def test_in_between(self):
-        self.assertEqual(floq.linalg.n_to_i(-3, 81), 37)
+        self.assertEqual(floq.evolution._n_to_i(-3, 81), 37)
 
     def test_too_big_a_bit(self):
-        self.assertEqual(floq.linalg.n_to_i(5, 7), floq.linalg.n_to_i(-2, 7))
+        self.assertEqual(floq.evolution._n_to_i(5, 7), floq.evolution._n_to_i(-2, 7))
 
     def test_too_big_a_lot(self):
-        self.assertEqual(floq.linalg.n_to_i(5+7, 7), floq.linalg.n_to_i(-2, 7))
+        self.assertEqual(floq.evolution._n_to_i(5+7, 7), floq.evolution._n_to_i(-2, 7))
 
     def test_too_small_a_bit(self):
-        self.assertEqual(floq.linalg.n_to_i(-6, 7), floq.linalg.n_to_i(1, 7))
+        self.assertEqual(floq.evolution._n_to_i(-6, 7), floq.evolution._n_to_i(1, 7))
 
     def test_too_small_a_lot(self):
-        self.assertEqual(floq.linalg.n_to_i(-6-14, 7), floq.linalg.n_to_i(1, 7))
+        self.assertEqual(floq.evolution._n_to_i(-6-14, 7), floq.evolution._n_to_i(1, 7))
 
 class TestNormalIndexToFourierIndex(TestCase):
     def test_start(self):
-        self.assertEqual(floq.linalg.i_to_n(0, 81), -40)
+        self.assertEqual(floq.evolution._i_to_n(0, 81), -40)
 
     def test_end(self):
-        self.assertEqual(floq.linalg.i_to_n(80, 81), 40)
+        self.assertEqual(floq.evolution._i_to_n(80, 81), 40)
 
     def test_middle(self):
-        self.assertEqual(floq.linalg.i_to_n(40, 81), 0)
+        self.assertEqual(floq.evolution._i_to_n(40, 81), 0)
 
     def test_in_between(self):
-        self.assertEqual(floq.linalg.i_to_n(37, 81), -3)
+        self.assertEqual(floq.evolution._i_to_n(37, 81), -3)
 
 
 class TestIsUnitary(TestCase):

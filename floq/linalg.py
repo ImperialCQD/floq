@@ -1,36 +1,6 @@
 import numba
 import numpy as np
 
-@numba.njit
-def n_to_i(num, n):
-    """Translate num, ranging from -(n-1)/2 through (n-1)/2 into an index i from
-    0 to n-1.  If num > (n-1)/2, map it into the interval.  This is necessary to
-    translate from a physical Fourier mode number to an index in an array."""
-    return (num + (n - 1) // 2) % n
-
-@numba.njit
-def i_to_n(i, n):
-    """Translate index i, ranging from 0 to n-1 into a number from -(n-1)/2
-    through (n-1)/2.  This is necessary to translate from an index to a physical
-    Fourier mode number."""
-    return i - (n - 1) // 2
-
-@numba.njit
-def get_block(matrix, dim_block, n_block, row, col):
-    start_row = row * dim_block
-    start_col = col * dim_block
-    stop_row = start_row + dim_block
-    stop_col = start_col + dim_block
-    return matrix[start_row:stop_row, start_col:stop_col]
-
-@numba.njit
-def set_block(block, matrix, dim_block, n_block, row, col):
-    start_row = row * dim_block
-    start_col = col * dim_block
-    stop_row = start_row + dim_block
-    stop_col = start_col + dim_block
-    matrix[start_row:stop_row, start_col:stop_col] = block
-
 def is_unitary(u, digits):
     """Return True if u^dagger u is equal to the unit matrix with the given
     tolerance."""

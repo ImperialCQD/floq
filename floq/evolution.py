@@ -327,23 +327,45 @@ def assemble_k_sparse(hamiltonian, n_zones, frequency):
     return scipy.sparse.csc_matrix(elements, shape=(size, size))
 
 @numba.njit
+def _n_to_i(num, n):
+    """Translate num, ranging from -(n-1)/2 through (n-1)/2 into an index i from
+    0 to n-1.  If num > (n-1)/2, map it into the interval.  This is necessary to
+    translate from a physical Fourier mode number to an index in an array."""
+    return (num + (n - 1) // 2) % n
+
+@numba.njit
+def _i_to_n(i, n):
+    """Translate index i, ranging from 0 to n-1 into a number from -(n-1)/2
+    through (n-1)/2.  This is necessary to translate from an index to a physical
+    Fourier mode number."""
+    return i - (n - 1) // 2
+
+@numba.njit
+def _set_block(block, matrix, dim_block, n_block, row, col):
+    start_row = row * dim_block
+    start_col = col * dim_block
+    stop_row = start_row + dim_block
+    stop_col = start_col + dim_block
+    matrix[start_row:stop_row, start_col:stop_col] = block
+
+@numba.njit
 def assemble_k(hf, nz, omega):
     nc, dim = hf.shape[0:2]
     k_dim = dim * nz
     hf_max = (nc - 1) // 2
     k = np.zeros((k_dim, k_dim), dtype=np.complex128)
     for n in range(-hf_max, hf_max + 1):
-        current = hf[linalg.n_to_i(n, nc)]
+        current = hf[_n_to_i(n, nc)]
         row = max(0, n)  # if n < 0, start at row 0
         col = max(0, -n)  # if n > 0, start at col 0
         stop_row = min(nz - 1 + n, nz - 1)
         stop_col = min(nz - 1 - n, nz - 1)
         while row <= stop_row and col <= stop_col:
             if n == 0:
-                block = current + np.eye(dim) * omega * linalg.i_to_n(row, nz)
-                linalg.set_block(block, k, dim, nz, row, col)
+                block = current + np.eye(dim) * omega * _i_to_n(row, nz)
+                _set_block(block, k, dim, nz, row, col)
             else:
-                linalg.set_block(current, k, dim, nz, row, col)
+                _set_block(current, k, dim, nz, row, col)
             row = row + 1
             col = col + 1
     return k
