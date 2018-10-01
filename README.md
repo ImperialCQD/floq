@@ -3,11 +3,15 @@
 A Python module for smooth robust quantum control of periodic Hamiltonians.
 
 The original author was Marcel Langer, who started this module as part of
-[his Master's thesis](http://marcel-langer.com/ma).
+[his Master's thesis](http://marcel-langer.com/ma).  It is now maintained by
+[Jake Lishman](https://www.github.com/jakelishman) as part of the Imperial
+College London Controlled Quantum Dynamics group, and you can contact me at
+my Imperial email address jake.lishman16@imperial.ac.uk.
 
 The theory behind this module can be found in Marcel's thesis, and in the paper
 _Smooth optimal control with Floquet theory_ by Björn Bartels and Florian
-Mintert ([arXiv link](https://arxiv.org/abs/1205.5412)).
+Mintert ([arXiv](https://arxiv.org/abs/1205.5412),
+[journal](https://doi.org/10.1103/PhysRevA.88.052315)).
 
 
 ## Installation
