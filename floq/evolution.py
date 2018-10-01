@@ -538,7 +538,7 @@ def diagonalise(k, h_dimension, frequency, decimals):
         Floquet kets corresponding to a certain (potentially degenerate)
         quasi-energy.
     """
-    if isinstance(k, scipy.sparse.spmatrix):
+    if scipy.sparse.issparse(k):
         # We get twice as many eigenvalues as necessary so we can guarantee we
         # have a full set in the first Brillouin zone, even if all of them fall
         # on the very edge of the zone.  If this were to happen and we were only
