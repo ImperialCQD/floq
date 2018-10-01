@@ -387,35 +387,32 @@ def _single_dk_sparse(dhamiltonian, n_zones):
     Create a single sparse matrix for a single derivative.
     """
     n_modes, dimension = dhamiltonian.shape[0:2]
-    k_dimension = n_zones * dimension
     modes = [_dense_to_sparse(dhamiltonian[i]) for i in range(n_modes)]
     mode_mid = (n_modes - 1) // 2
     n_elements = 0
     for i, mode in enumerate(modes):
         n_elements += mode.value.size * (n_zones - abs(mode_mid - i))
-    in_column = np.zeros(k_dimension, dtype=np.int64)
+    in_column = np.zeros(n_zones * dimension, dtype=np.int64)
     row = np.empty(n_elements, dtype=np.int64)
     value = np.empty(n_elements, dtype=np.complex128)
     main_ptr = 0
     block_ptr = np.zeros(n_modes, dtype=np.int64)
-    block_mid_row = -1
-    for i in range(k_dimension):
-        zone_column = i // dimension
-        block_column = i % dimension
-        if block_column == 0:
-            block_ptr[:] = 0
-            block_mid_row += 1
-        start_mode = max(0, mode_mid - zone_column)
-        end_mode = min(n_modes, mode_mid + n_zones - zone_column)
-        for j in range(start_mode, end_mode):
-            n_to_add = modes[j].in_column[block_column]
-            in_column[i] += n_to_add
-            row_add = (block_mid_row + j - mode_mid) * dimension
-            for _ in range(n_to_add):
-                row[main_ptr] = modes[j].row[block_ptr[j]] + row_add
-                value[main_ptr] = modes[j].value[block_ptr[j]]
-                main_ptr += 1
-                block_ptr[j] += 1
+    block_mid_row = 0
+    for zone_column in range(n_zones):
+        for block_column in range(dimension):
+            start_mode = max(0, mode_mid - zone_column)
+            end_mode = min(n_modes, mode_mid + n_zones - zone_column)
+            for j in range(start_mode, end_mode):
+                n_to_add = modes[j].in_column[block_column]
+                in_column[zone_column*dimension + block_column] += n_to_add
+                row_add = (block_mid_row + j - mode_mid) * dimension
+                for _ in range(n_to_add):
+                    row[main_ptr] = modes[j].row[block_ptr[j]] + row_add
+                    value[main_ptr] = modes[j].value[block_ptr[j]]
+                    main_ptr += 1
+                    block_ptr[j] += 1
+        block_ptr[:] = 0
+        block_mid_row += 1
     return ColumnSparseMatrix(in_column, row, value)
 
 @numba.njit
