@@ -284,7 +284,7 @@ def _k_ijv_constructor(hamiltonian, n_zones, frequency):
     n_elements = dimension * n_zones # include extra space for diagonal
     for i, row in enumerate(rows):
         n_elements += row.size * (n_zones - abs(mid - i))
-    row_out = np.empty(n_elements, dtype=np.intp)
+    row_out = np.empty(n_elements, dtype=np.int64)
     col_out = np.empty_like(row_out)
     val_out = np.empty(n_elements, dtype=np.complex128)
     start = 0
