@@ -148,6 +148,7 @@ def conjugate_rotate_into(out, input, amount):
     isn't supported by numba.  Also, we can directly write into `out` so we
     don't have any allocations in tight loops.
     """
+    amount = amount % input.shape[0]
     if amount < 0:
         out[:amount] = np.conj(input[abs(amount):])
         out[amount:] = np.conj(input[:abs(amount)])
