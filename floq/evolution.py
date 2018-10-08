@@ -1,20 +1,10 @@
 import numba
 import numpy as np
 import scipy.sparse.linalg
-import collections
 import logging
-from . import linalg
+from . import linalg, types
 
 _log = logging.getLogger(__name__)
-
-Eigensystem = collections.namedtuple('Eigensystem', (
-                                         'frequency',
-                                         'quasienergies',
-                                         'k_eigenvectors',
-                                         'initial_floquet_bras',
-                                         'abstract_ket_coefficients',
-                                         'k_derivatives',
-                                    ))
 
 def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
                 sparse=True):
@@ -69,9 +59,9 @@ def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
     initial_floquet_bras = np.conj(np.sum(k_eigenvectors, axis=1))
     fourier_modes = np.arange((1-n_zones)//2, 1 + (n_zones//2))
     abstract_ket_coefficients = 1j * frequency * fourier_modes
-    return Eigensystem(frequency, quasienergies, k_eigenvectors,
-                       initial_floquet_bras, abstract_ket_coefficients,
-                       k_derivatives)
+    return types.Eigensystem(frequency, quasienergies, k_eigenvectors,
+                             initial_floquet_bras, abstract_ket_coefficients,
+                             k_derivatives)
 
 @numba.njit
 def current_floquet_kets(eigensystem, time):
@@ -157,13 +147,6 @@ def conjugate_rotate_into(out, input, amount):
         out[:amount] = np.conj(input[-amount:])
     else:
         out[:] = np.conj(input)
-
-# I use this custom sparse column representation of a matrix for compatibility
-# with `numba`, since it can't understand `scipy.sparse` matrices.  I couple
-# this with a simple implementation of a left dot product (i.e. vector . matrix)
-# to get a speed ip on the heaviest part of `du_dcontrols()`.
-ColumnSparseMatrix = collections.namedtuple('ColumnSparseMatrix',
-                                            ('in_column', 'row', 'value'))
 @numba.njit
 def _column_sparse_ldot(vector, matrix):
     out = np.zeros_like(vector)
@@ -380,7 +363,7 @@ def _dense_to_sparse(matrix):
     for i in range(col.size):
         in_column[col[i]] += 1
         value[i] = matrix[row[i], col[i]]
-    return ColumnSparseMatrix(in_column, row, value)
+    return types.ColumnSparseMatrix(in_column, row, value)
 
 @numba.njit
 def _single_dk_sparse(dhamiltonian, n_zones):
@@ -414,7 +397,7 @@ def _single_dk_sparse(dhamiltonian, n_zones):
                     block_ptr[j] += 1
         block_ptr[:] = 0
         block_mid_row += 1
-    return ColumnSparseMatrix(in_column, row, value)
+    return types.ColumnSparseMatrix(in_column, row, value)
 
 @numba.njit
 def assemble_dk(dhamiltonians, n_zones):

@@ -106,9 +106,9 @@ class TestAssembleK(CustomAssertions):
 
 class TestDenseToSparse(CustomAssertions):
     def test_conversion(self):
-        goal = floq.evolution.ColumnSparseMatrix(np.array([1, 2]),
-                                                 np.array([1, 0, 1]),
-                                                 np.array([2, 1, 3]))
+        goal = floq.types.ColumnSparseMatrix(np.array([1, 2]),
+                                             np.array([1, 0, 1]),
+                                             np.array([2, 1, 3]))
         built = floq.evolution._dense_to_sparse(np.arange(4).reshape(2, 2))
         self.assertColumnSparseMatrixEqual(built, goal)
 
