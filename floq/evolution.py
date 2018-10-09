@@ -1,3 +1,16 @@
+"""
+Contains all the heavy-lifting numerical apparatus for doing Floquet-theory
+calculations.  This need not be called by the end-user, since everything happens
+behind the scenes in the `System` class.
+
+There are largely two categories of functions in this module - ones which are
+involved in the creation and diagonalisation of the Floquet matrix, and ones
+which take a diagonalised matrix and return objects related to the
+time-evolution operator.  The type `types.Eigensystem` is the link between these
+two - this contains all the information necessary to build all the other
+properties after a diagonalisation, and is cached by the `System` class.
+"""
+
 import numba
 import numpy as np
 import scipy.sparse.linalg

@@ -1,3 +1,8 @@
+"""
+Contains the base `floq` class `System`.  This class should be exported into the
+global `floq` namespace, so this module need not be accessed by end-users.
+"""
+
 import numpy as np
 import abc
 import logging

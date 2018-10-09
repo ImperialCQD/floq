@@ -1,3 +1,10 @@
+"""
+Largely helper functions for doing linear algebra in the context of quantum
+mechanics.  The functions here can be used as figures of merit and their
+derivatives for optimisation, or used to check various properties of the output
+matrices.
+"""
+
 import numba
 import numpy as np
 
