@@ -17,7 +17,7 @@ class TestRabiUfromEigensystem(CustomAssertions):
         g = 0.5
         e1 = 1.2
         e2 = 2.8
-        hf = rabi.hf(g, e1, e2)
+        hf = floq.system._canonicalise_operator(rabi.hf(g, e1, e2))
 
         nz = 11
         dim = 2
@@ -42,8 +42,8 @@ class TestRabidUfromEigensystem(CustomAssertions):
         g = 0.5
         e1 = 1.2
         e2 = 2.8
-        hf = rabi.hf(g, e1, e2)
-        dhf = np.array([rabi.hf(1.0, 0, 0)])
+        hf = floq.system._canonicalise_operator(rabi.hf(g, e1, e2))
+        dhf = (floq.system._canonicalise_operator(rabi.hf(1.0, 0, 0)),)
         nz = 21
         dim = 2
         omega = 5.0
@@ -84,6 +84,7 @@ class TestSpinUfromEigensystem(CustomAssertions):
         loader.exec_module(self.spins)
         controls = np.array([1.2, 1.3, 4.5, 3.3, -0.8, 0.9, 3.98, -4.0, 0.9, 1.0])
         hf = self.spins.hamiltonian(5, 0.1, controls)
+        hf = floq.system._canonicalise_operator(hf)
         nz = 51
         dim = 2
         omega = 1.3

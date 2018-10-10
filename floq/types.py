@@ -10,6 +10,35 @@ internal types.
 
 import collections
 
+TransformedMatrix = collections.namedtuple('TransformedMatrix',
+                                           ('mode', 'matrix'))
+TransformedMatrix.__doc__ =\
+    """
+    Internal representation of a Fourier-transformed Hamiltonian.  This is
+    essentially a struct-of-arrays, with two related strands - an array of
+    integers of the populated Fourier modes, and an array of the corresponding
+    (2D complex) Hamiltonians.
+
+    The idea is that the user will be able to specify their Hamiltonian in
+    several different forms (since depending on the problem there are a few ways
+    which make sense), but internally we will convert to a single canonical form
+    which will then be used throughout.
+    """
+TransformedMatrix.mode.__doc__ =\
+    """
+    iterable of int
+
+    An array of the populated modes of the Fourier transformed Hamiltonian.  The
+    matrix corresponding to `mode[i]` should be stored in `hamiltonian[i]`.
+    """
+TransformedMatrix.matrix.__doc__ =\
+    """
+    indexable of 2D np.array of complex
+
+    The Hamiltonian matrices for each populated Fourier mode.  The Hamiltonian
+    in `matrix[i]` should have Fourier mode `mode[i]`.
+    """
+
 Eigensystem = collections.namedtuple('Eigensystem', (
                                          'frequency',
                                          'quasienergies',

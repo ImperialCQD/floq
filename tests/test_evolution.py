@@ -23,55 +23,16 @@ class TestSetBlock(TestCase):
 
     def test_set(self):
         # Try to recreate self.original with the new function
-        floq.evolution._set_block(self.a, self.copy, self.dim_block, self.n_block, 0, 0)
-        floq.evolution._set_block(self.b, self.copy, self.dim_block, self.n_block, 0, 1)
-        floq.evolution._set_block(self.c, self.copy, self.dim_block, self.n_block, 0, 2)
-        floq.evolution._set_block(self.d, self.copy, self.dim_block, self.n_block, 1, 0)
-        floq.evolution._set_block(self.e, self.copy, self.dim_block, self.n_block, 1, 1)
-        floq.evolution._set_block(self.f, self.copy, self.dim_block, self.n_block, 1, 2)
-        floq.evolution._set_block(self.g, self.copy, self.dim_block, self.n_block, 2, 0)
-        floq.evolution._set_block(self.h, self.copy, self.dim_block, self.n_block, 2, 1)
-        floq.evolution._set_block(self.i, self.copy, self.dim_block, self.n_block, 2, 2)
+        floq.evolution._add_block(self.a, self.copy, self.dim_block, self.n_block, 0, 0)
+        floq.evolution._add_block(self.b, self.copy, self.dim_block, self.n_block, 0, 1)
+        floq.evolution._add_block(self.c, self.copy, self.dim_block, self.n_block, 0, 2)
+        floq.evolution._add_block(self.d, self.copy, self.dim_block, self.n_block, 1, 0)
+        floq.evolution._add_block(self.e, self.copy, self.dim_block, self.n_block, 1, 1)
+        floq.evolution._add_block(self.f, self.copy, self.dim_block, self.n_block, 1, 2)
+        floq.evolution._add_block(self.g, self.copy, self.dim_block, self.n_block, 2, 0)
+        floq.evolution._add_block(self.h, self.copy, self.dim_block, self.n_block, 2, 1)
+        floq.evolution._add_block(self.i, self.copy, self.dim_block, self.n_block, 2, 2)
         self.assertTrue(np.array_equal(self.copy,self.original))
-
-
-class TestFourierIndexToNormalIndex(TestCase):
-    def test_start(self):
-        self.assertEqual(floq.evolution._n_to_i(-40, 81), 0)
-
-    def test_end(self):
-        self.assertEqual(floq.evolution._n_to_i(40, 81), 80)
-
-    def test_middle(self):
-        self.assertEqual(floq.evolution._n_to_i(0, 81), 40)
-
-    def test_in_between(self):
-        self.assertEqual(floq.evolution._n_to_i(-3, 81), 37)
-
-    def test_too_big_a_bit(self):
-        self.assertEqual(floq.evolution._n_to_i(5, 7), floq.evolution._n_to_i(-2, 7))
-
-    def test_too_big_a_lot(self):
-        self.assertEqual(floq.evolution._n_to_i(5+7, 7), floq.evolution._n_to_i(-2, 7))
-
-    def test_too_small_a_bit(self):
-        self.assertEqual(floq.evolution._n_to_i(-6, 7), floq.evolution._n_to_i(1, 7))
-
-    def test_too_small_a_lot(self):
-        self.assertEqual(floq.evolution._n_to_i(-6-14, 7), floq.evolution._n_to_i(1, 7))
-
-class TestNormalIndexToFourierIndex(TestCase):
-    def test_start(self):
-        self.assertEqual(floq.evolution._i_to_n(0, 81), -40)
-
-    def test_end(self):
-        self.assertEqual(floq.evolution._i_to_n(80, 81), 40)
-
-    def test_middle(self):
-        self.assertEqual(floq.evolution._i_to_n(40, 81), 0)
-
-    def test_in_between(self):
-        self.assertEqual(floq.evolution._i_to_n(37, 81), -3)
 
 
 class TestAssembleK(CustomAssertions):
@@ -92,7 +53,7 @@ class TestAssembleK(CustomAssertions):
                  [z, c, b, a, z],
                  [z, z, c, b+i, a],
                  [z, z, z, c, b+2*i]]))
-        self.hf = np.array([a, b, c])
+        self.hf = floq.system._canonicalise_operator(np.array([a, b, c]))
 
     def test_dense(self):
         builtk = floq.evolution.assemble_k(self.hf, self.n_zones, self.frequency)
@@ -139,7 +100,8 @@ class TestAssembledK(CustomAssertions):
                  [z, z, z, a, b]]))
 
         self.goaldk = [floq.evolution._dense_to_sparse(x) for x in [dk1, dk2]]
-        self.dhf = np.array([[a, b, c], [b, b, a]])
+        self.dhf = [floq.system._canonicalise_operator(np.array([a, b, c])),
+                    floq.system._canonicalise_operator(np.array([b, b, a]))]
 
     def test_build(self):
         builtdk = floq.evolution.assemble_dk(self.dhf, self.n_zones)

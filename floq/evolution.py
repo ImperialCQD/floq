@@ -32,14 +32,12 @@ def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
     the `du_dcontrols()` function.
 
     Arguments --
-    hamiltonian: 3D np.array of complex --
-        This must be the matrix of a Hamiltonian, split into Fourier components
-        in the same manner used in the return values of
-        `floq.System.hamiltonian()`.
+    hamiltonian: types.TransformedMatrix
+        The canonicalised form of the Fourier-transformed Hamiltonian operator.
 
-    dhamiltonian: 4D np.array of complex | None --
+    dhamiltonian: iterable of types.TransformedMatrix | None --
         Optionally, the matrix form of the derivatives of a Hamiltonian, as in
-        the output of `floq.System.dhamiltonian()`.  If not supplied, then the
+        the output of `floq.System._dhamiltonian()`.  If not supplied, then the
         resulting `Eigensystem` cannot be used with the `du_dcontrols()`
         function.
 
@@ -60,7 +58,7 @@ def eigensystem(hamiltonian, dhamiltonian, n_zones, frequency, decimals=8,
         A collection of parameters that are not time-dependent, which can be
         passed to the time-specific functions.
     """
-    n_components, dimension = hamiltonian.shape[0:2]
+    dimension = hamiltonian.matrix[0].shape[0]
     k = assemble_k_sparse(hamiltonian, n_zones, frequency) if sparse\
         else assemble_k(hamiltonian, n_zones, frequency)
     k_derivatives = None if dhamiltonian is None\
@@ -274,22 +272,21 @@ def _k_ijv_constructor(hamiltonian, n_zones, frequency):
     can be passed to the `coo`, `csc` or `csr` sparse matrix constructors,
     resulting in an efficient creation.
     """
-    nonzeros = [hamiltonian[i].nonzero() for i in range(hamiltonian.shape[0])]
+    nonzeros = [matrix.nonzero() for matrix in hamiltonian.matrix]
     rows, cols = [x[0] for x in nonzeros], [x[1] for x in nonzeros]
-    dimension = hamiltonian.shape[1]
-    mid = (len(rows) - 1) // 2
+    dimension = hamiltonian.matrix[0].shape[0]
     n_elements = dimension * n_zones # include extra space for diagonal
-    for i, row in enumerate(rows):
-        n_elements += row.size * (n_zones - abs(mid - i))
+    for mode, row in zip(hamiltonian.mode, rows):
+        n_elements += row.size * (n_zones - abs(mode))
     row_out = np.empty(n_elements, dtype=np.int64)
     col_out = np.empty_like(row_out)
     val_out = np.empty(n_elements, dtype=np.complex128)
     start = 0
-    for i in range(len(rows)):
-        row, col = rows[i], cols[i]
-        val = np.array([hamiltonian[i,row[k],col[k]] for k in range(row.size)])
-        start_row, start_col = max(0, i - mid), max(0, mid - i)
-        n_blocks = n_zones - abs(mid - i)
+    for i, mode in enumerate(hamiltonian.mode):
+        row, col, matrix = rows[i], cols[i], hamiltonian.matrix[i]
+        val = np.array([matrix[row[k], col[k]] for k in range(row.size)])
+        start_row, start_col = max(0, mode), max(0, -mode)
+        n_blocks = n_zones - abs(mode)
         for j in range(n_blocks):
             row_out[start : start+row.size] = row + (start_row+j)*dimension
             col_out[start : start+row.size] = col + (start_col+j)*dimension
@@ -315,52 +312,32 @@ def assemble_k_sparse(hamiltonian, n_zones, frequency):
     format.  The sparser `K` is, the more efficient this way of doing things is.
     """
     elements = _k_ijv_constructor(hamiltonian, n_zones, frequency)
-    size = n_zones * hamiltonian.shape[1]
+    size = n_zones * hamiltonian.matrix[0].shape[0]
     # Use `csc` format for efficiency in the diagonalisation routine.
     return scipy.sparse.csc_matrix(elements, shape=(size, size))
 
 @numba.njit
-def _n_to_i(num, n):
-    """Translate num, ranging from -(n-1)/2 through (n-1)/2 into an index i from
-    0 to n-1.  If num > (n-1)/2, map it into the interval.  This is necessary to
-    translate from a physical Fourier mode number to an index in an array."""
-    return (num + (n - 1) // 2) % n
-
-@numba.njit
-def _i_to_n(i, n):
-    """Translate index i, ranging from 0 to n-1 into a number from -(n-1)/2
-    through (n-1)/2.  This is necessary to translate from an index to a physical
-    Fourier mode number."""
-    return i - (n - 1) // 2
-
-@numba.njit
-def _set_block(block, matrix, dim_block, n_block, row, col):
+def _add_block(block, matrix, dim_block, n_block, row, col):
     start_row = row * dim_block
     start_col = col * dim_block
     stop_row = start_row + dim_block
     stop_col = start_col + dim_block
-    matrix[start_row:stop_row, start_col:stop_col] = block
+    matrix[start_row:stop_row, start_col:stop_col] += block
 
 @numba.njit
-def assemble_k(hf, nz, omega):
-    nc, dim = hf.shape[0:2]
-    k_dim = dim * nz
-    hf_max = (nc - 1) // 2
-    k = np.zeros((k_dim, k_dim), dtype=np.complex128)
-    for n in range(-hf_max, hf_max + 1):
-        current = hf[_n_to_i(n, nc)]
-        row = max(0, n)  # if n < 0, start at row 0
-        col = max(0, -n)  # if n > 0, start at col 0
-        stop_row = min(nz - 1 + n, nz - 1)
-        stop_col = min(nz - 1 - n, nz - 1)
-        while row <= stop_row and col <= stop_col:
-            if n == 0:
-                block = current + np.eye(dim) * omega * _i_to_n(row, nz)
-                _set_block(block, k, dim, nz, row, col)
-            else:
-                _set_block(current, k, dim, nz, row, col)
-            row = row + 1
-            col = col + 1
+def assemble_k(hamiltonian, n_zones, frequency):
+    dimension = hamiltonian.matrix[0].shape[0]
+    k = np.zeros((n_zones*dimension, n_zones*dimension), dtype=np.complex128)
+    for mode, matrix in zip(hamiltonian.mode, hamiltonian.matrix):
+        n_blocks = n_zones - abs(mode)
+        start_row, start_col = max(0, mode), max(0, -mode)
+        for j in range(n_blocks):
+            _add_block(matrix, k, dimension, n_zones, start_row+j, start_col+j)
+        if mode == 0:
+            block = np.eye(dimension) * frequency
+            zone_max = (n_zones - 1) // 2
+            for j, zone in enumerate(range(-zone_max, zone_max + 1)):
+                _add_block(block*zone, k, dimension, n_zones, j, j)
     return k
 
 @numba.njit
@@ -383,29 +360,29 @@ def _single_dk_sparse(dhamiltonian, n_zones):
     """
     Create a single sparse matrix for a single derivative.
     """
-    n_modes, dimension = dhamiltonian.shape[0:2]
-    modes = [_dense_to_sparse(dhamiltonian[i]) for i in range(n_modes)]
-    mode_mid = (n_modes - 1) // 2
+    dimension = dhamiltonian.matrix[0].shape[0]
+    matrices = [_dense_to_sparse(op) for op in dhamiltonian.matrix]
     n_elements = 0
-    for i, mode in enumerate(modes):
-        n_elements += mode.value.size * (n_zones - abs(mode_mid - i))
+    for i, mode in enumerate(dhamiltonian.mode):
+        n_elements += matrices[i].value.size * (n_zones - abs(mode))
     in_column = np.zeros(n_zones * dimension, dtype=np.int64)
     row = np.empty(n_elements, dtype=np.int64)
     value = np.empty(n_elements, dtype=np.complex128)
     main_ptr = 0
-    block_ptr = np.zeros(n_modes, dtype=np.int64)
+    block_ptr = np.zeros(len(matrices), dtype=np.int64)
     block_mid_row = 0
     for zone_column in range(n_zones):
         for block_column in range(dimension):
-            start_mode = max(0, mode_mid - zone_column)
-            end_mode = min(n_modes, mode_mid + n_zones - zone_column)
-            for j in range(start_mode, end_mode):
-                n_to_add = modes[j].in_column[block_column]
+            mode_lower, mode_upper = -zone_column, n_zones - zone_column
+            for j, mode in enumerate(dhamiltonian.mode):
+                if not mode_lower <= mode < mode_upper:
+                    continue
+                n_to_add = matrices[j].in_column[block_column]
                 in_column[zone_column*dimension + block_column] += n_to_add
-                row_add = (block_mid_row + j - mode_mid) * dimension
+                row_add = (block_mid_row + mode) * dimension
                 for _ in range(n_to_add):
-                    row[main_ptr] = modes[j].row[block_ptr[j]] + row_add
-                    value[main_ptr] = modes[j].value[block_ptr[j]]
+                    row[main_ptr] = matrices[j].row[block_ptr[j]] + row_add
+                    value[main_ptr] = matrices[j].value[block_ptr[j]]
                     main_ptr += 1
                     block_ptr[j] += 1
         block_ptr[:] = 0
@@ -422,8 +399,7 @@ def assemble_dk(dhamiltonians, n_zones):
     I use this poor-man's sparse matrix beacuse `numba` doesn't know about
     `scipy.sparse` matrices.
     """
-    return [_single_dk_sparse(dhamiltonians[i], n_zones)
-            for i in range(dhamiltonians.shape[0])]
+    return [_single_dk_sparse(op, n_zones) for op in dhamiltonians]
 
 def first_brillouin_zone(eigenvalues, eigenvectors, n_values, edge):
     """
