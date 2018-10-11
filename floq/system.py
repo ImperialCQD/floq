@@ -44,8 +44,9 @@ def _canonicalise_operator(operator):
                " in `floq.System`.")
         raise TypeError(msg) from None
     for m in mode:
-        if type(m) != int:
-            raise TypeError(f"Invalid mode type {type(m)}.  Should be int.")
+        if not isinstance(m, (int, np.integer)):
+            name = m.__class__.__name__
+            raise TypeError(f"Invalid mode type {name}.  Should be an integer.")
     for matrix in hamiltonian:
         failure = not isinstance(matrix, np.ndarray)\
                   or len(matrix.shape) is not 2\
