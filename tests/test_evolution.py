@@ -154,17 +154,17 @@ class TestFindEigensystem(CustomAssertions):
 class TestFindDuplicates(CustomAssertions):
     def test_duplicates(self):
         a = np.round(np.array([1, 2.001, 2.003, 1.999, 3]), decimals=2)
-        res = tuple(floq.evolution.find_duplicates(a))
+        res = tuple(floq.evolution._find_duplicates(a))
         self.assertEqual(len(res), 1)
         self.assertArrayEqual([1, 2, 3], res[0])
 
     def test_empty_if_no_dup(self):
         a = np.round(np.array([1, 2.001, 4.003, 8.999, 10]), decimals=2)
-        res = tuple(floq.evolution.find_duplicates(a))
+        res = tuple(floq.evolution._find_duplicates(a))
         self.assertEqual(res, ())
 
     def test_multiple_duplicates(self):
         a = np.array([1., 1., 2., 2., 3., 4., 4.])
-        res = tuple(floq.evolution.find_duplicates(a))
+        res = tuple(floq.evolution._find_duplicates(a))
         self.assertEqual(len(res), 3)
         self.assertArrayEqual([[0, 1], [2, 3], [5, 6]], res)

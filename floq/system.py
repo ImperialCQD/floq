@@ -30,6 +30,7 @@ def _compare_kwargs(one, two):
             return False
     return True
 
+
 @functools.singledispatch
 def _canonicalise_operator(operator):
     # Base case handles iterables of `(mode, matrix)`.
@@ -72,6 +73,7 @@ _canonicalise_operator.register(types.TransformedMatrix, lambda x: x)
 def _canonicalise_dict(dict_):
     # Pass through to the base case as a correct iterable.
     return _canonicalise_operator(dict_.items())
+
 
 class System:
     """
@@ -273,6 +275,7 @@ class System:
         u = self.u(t, *args, **kwargs)
         du_dt = self.du_dt(t, *args, **kwargs)
         return 1j * (du_dt @ np.conj(u.T))
+
 
 class EnsembleBase(abc.ABC):
     """

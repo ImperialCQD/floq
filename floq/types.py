@@ -39,6 +39,7 @@ TransformedMatrix.matrix.__doc__ =\
     in `matrix[i]` should have Fourier mode `mode[i]`.
     """
 
+
 Eigensystem = collections.namedtuple('Eigensystem', (
                                          'frequency',
                                          'quasienergies',
@@ -63,6 +64,7 @@ Eigensystem.abstract_ket_coefficients.__doc__ =\
     "The time-independent part of the abstract frequency kets."
 Eigensystem.k_derivatives.__doc__ =\
     "Matrix representation of the derivatives of the Floquet matrix."
+
 
 # I use this custom sparse column representation of a matrix for compatibility
 # with `numba`, since it can't understand `scipy.sparse` matrices.  I couple

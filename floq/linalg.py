@@ -46,6 +46,7 @@ def gram_schmidt(vecs):
             result[j] = vecs[j] / rjj
     return result
 
+
 def transfer_fidelity(u, initial, final):
     """Compute how well the unitary u transfers an initial state |i> to a final
     state |f>, quantified by fid = |<f| u |i>|^2 = <f| u |i><i| u |f>.
@@ -64,6 +65,7 @@ def d_transfer_fidelity(u, dus, initial, final):
                              inner(initial, np.conj(du.T), final) * fui
                              for du in dus]))
 
+
 def transfer_distance(u, initial, final):
     """Version of the transfer fidelity that is minimal when the
     transfer is ideal."""
@@ -72,6 +74,7 @@ def transfer_distance(u, initial, final):
 def d_transfer_distance(u, dus, initial, final):
     """Gradient of the transfer distance."""
     return -d_transfer_fidelity(u, dus, initial, final)
+
 
 def operator_fidelity(u, target):
     """Calculate the operator fidelity between the unitaries
@@ -83,6 +86,7 @@ def operator_fidelity(u, target):
 def d_operator_fidelity(u, dus, target):
     """Calculate the gradient of the operator fidelity."""
     return np.array([operator_fidelity(du, target) for du in dus])
+
 
 def operator_distance(u, target):
     """Calculate a quantity proportional to the Hilbert-Schmidt distance
@@ -98,6 +102,7 @@ def operator_distance(u, target):
 def d_operator_distance(u, dus, target):
     """Calculate the gradient of the operator distance."""
     return -d_operator_fidelity(u, dus, target)
+
 
 def inner(left, operator, right):
     """Compute <left|operator|right>."""
