@@ -38,7 +38,7 @@ def _canonicalise_operator(operator):
         iterable = iter(operator)
         mode, hamiltonian = zip(*iterable)
         mode, hamiltonian = tuple(mode), tuple(hamiltonian)
-    except [TypeError, ValueError]:
+    except (TypeError, ValueError):
         msg = (f"Could not interpret type {type(argument)} as a"
                " Fourier-transformed matrix.  See the help for `hamiltonian`"
                " in `floq.System`.")
